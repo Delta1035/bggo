@@ -1,6 +1,6 @@
 /build/
 /.mygo/
-/dist/
+**/dist/
 node_modules/
 mygo_windows_*.syso
 *.vsix
