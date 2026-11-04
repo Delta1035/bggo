@@ -1,0 +1,85 @@
+{
+  "name": "bggo-wallpaper",
+  "displayName": "BGGo Wallpaper",
+  "description": "为 VS Code 选择和管理本地壁纸",
+  "version": "0.1.0",
+  "publisher": "bggo",
+  "license": "MIT",
+  "packageManager": "pnpm@11.5.2",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other",
+    "Themes"
+  ],
+  "activationEvents": [],
+  "main": "./dist/extension.js",
+  "extensionDependencies": [
+    "be5invis.vscode-custom-css"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "bggo.selectWallpaper",
+        "title": "BGGo: 选择 VS Code 壁纸"
+      },
+      {
+        "command": "bggo.refreshWallpaper",
+        "title": "BGGo: 重新生成壁纸样式"
+      },
+      {
+        "command": "bggo.disableWallpaper",
+        "title": "BGGo: 关闭 VS Code 壁纸"
+      }
+    ],
+    "configuration": {
+      "title": "BGGo Wallpaper",
+      "properties": {
+        "bggo.wallpaper.path": {
+          "type": "string",
+          "default": "",
+          "description": "当前 VS Code 壁纸的绝对路径。建议通过命令选择。"
+        },
+        "bggo.wallpaper.opacity": {
+          "type": "number",
+          "default": 0.16,
+          "minimum": 0.03,
+          "maximum": 1,
+          "description": "壁纸透明度。"
+        },
+        "bggo.wallpaper.blur": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "maximum": 30,
+          "description": "壁纸模糊半径，单位为像素。"
+        },
+        "bggo.wallpaper.position": {
+          "type": "string",
+          "enum": [
+            "center",
+            "top",
+            "bottom",
+            "left",
+            "right"
+          ],
+          "default": "center",
+          "description": "壁纸对齐位置。"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "check": "tsc --noEmit",
+    "compile": "tsc -p ./",
+    "package": "pnpm run compile && vsce package --allow-missing-repository"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/vscode": "^1.90.0",
+    "@vscode/vsce": "^3.2.1",
+    "typescript": "^5.7.2"
+  }
+}
+
