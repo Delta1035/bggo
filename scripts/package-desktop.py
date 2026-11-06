@@ -20,7 +20,8 @@ for pattern in patterns:
         raise SystemExit(f"Expected exactly one {stage / pattern}, found {len(matches)}")
     packages.extend(matches)
 for package in packages:
-    shutil.copy2(package, out / package.name)
+    # GitHub replaces spaces in release asset names with dots. Normalize before hashing.
+    shutil.copy2(package, out / package.name.replace(" ", "."))
 if platform == "windows":
     if not (stage / "BGGo.exe").is_file():
         raise SystemExit("Missing Windows executable")
