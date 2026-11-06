@@ -2,6 +2,8 @@
 
 BGGo 是一个基于 [MyGo](https://github.com/egoist/mygo) 原生 UI 的跨平台壁纸工具。当前优先支持 Linux，Windows 已提供系统壁纸适配；VS Code 壁纸由仓库中的独立扩展负责。
 
+> 当前阶段：Alpha。核心流程已经可用，但尚未完成完整的真机兼容测试、自动发布、签名和自动更新，不建议作为稳定版分发。
+
 ## 当前功能
 
 - 选择并预览 JPG、PNG、WebP、BMP 图片
@@ -11,13 +13,25 @@ BGGo 是一个基于 [MyGo](https://github.com/egoist/mygo) 原生 UI 的跨平�
 - Windows：通过系统 API 设置桌面壁纸
 - VS Code：通过 `extensions/bggo-vscode` 选择、启用和关闭编辑器壁纸
 
+## 文档
+
+- [文档导航](docs/README.md)
+- [产品范围与当前状态](docs/product.md)
+- [用户指南与故障排查](docs/user-guide.md)
+- [架构说明](docs/architecture.md)
+- [开发指南](docs/development.md)
+- [发布与更新方案](docs/release-and-update.md)
+- [路线图与 Agent 任务卡](docs/roadmap.md)
+
 ## 开发环境
 
 MyGo `v0.5.5` 需要 Go `1.27.2+`。仓库声明了 Go 工具链版本，启用 `GOTOOLCHAIN=auto` 时 Go 可以自动获取匹配的工具链。
 
 ```bash
 go mod download
-go test ./...
+go test -race ./...
+go vet ./...
+go tool mygo vet
 go tool mygo dev
 ```
 

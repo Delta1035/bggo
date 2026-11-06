@@ -1,0 +1,98 @@
+# 用户指南与故障排查
+
+## 桌面壁纸
+
+1. 启动 BGGo。
+2. 点击“选择图片”，选择 JPG、JPEG、PNG、WebP 或 BMP 文件。
+3. 在预览区确认图片，按需切换覆盖、适应或拉伸预览方式。
+4. 点击“应用到桌面”。
+
+“最近使用”最多保留 20 条记录。BGGo 只保存图片路径，不复制或上传原图。
+
+> 当前的预览方式只影响应用内预览，尚未控制操作系统的填充方式。
+
+### 本地数据
+
+最近使用记录保存在操作系统返回的用户配置目录下：
+
+- Linux 通常为 `~/.config/bggo/library.json`。
+- Windows 通常为 `%AppData%\bggo\library.json`。
+
+删除这个文件可以清空历史记录。执行前建议先退出 BGGo；原始图片不会被删除。
+
+## VS Code 壁纸
+
+### 启用
+
+1. 安装 `BGGo Wallpaper` 和依赖扩展 `Custom CSS and JS Loader`。
+2. 打开命令面板，运行 `BGGo: 选择 VS Code 壁纸`。
+3. 选择本地图片。
+4. Linux 用户如果看到授权提示，检查说明后选择“一键授权并继续”。
+5. 按提示重新加载 VS Code 窗口。
+
+在设置中搜索 `BGGo Wallpaper` 可以修改：
+
+- `bggo.wallpaper.opacity`：透明度，范围 `0.03`～`1`。
+- `bggo.wallpaper.blur`：模糊半径，范围 `0`～`30` 像素。
+- `bggo.wallpaper.position`：居中、顶部、底部、左侧或右侧。
+
+修改设置后扩展会自动重新生成壁纸脚本。没有生效时运行 `BGGo: 重新生成壁纸样式` 并重新加载窗口。
+
+### 关闭和恢复
+
+运行 `BGGo: 关闭 VS Code 壁纸`，然后按提示重新加载窗口。这会从 `vscode_custom_css.imports` 中移除 BGGo 管理的脚本，不会删除原始图片。
+
+如果 VS Code 仍提示安装损坏，或希望完全恢复官方工作台文件，请关闭壁纸后使用系统包管理器重装/修复 VS Code。不要手动删除不确定用途的工作台文件。
+
+## 常见问题
+
+### Linux 桌面提示“不支持当前桌面环境”
+
+检查会话环境和对应命令是否存在：
+
+```bash
+printf '%s\n' "$XDG_CURRENT_DESKTOP" "$DESKTOP_SESSION"
+command -v gsettings
+command -v plasma-apply-wallpaperimage
+command -v xfconf-query
+```
+
+GNOME、Ubuntu、Cinnamon 和 MATE 通常需要 `gsettings`；KDE Plasma 需要 `plasma-apply-wallpaperimage`；XFCE 需要 `xfconf-query`。只需安装当前桌面环境所需的命令。
+
+### VS Code 报 `EACCES: permission denied`
+
+运行 `BGGo: 修复 VS Code 壁纸权限`。自动授权要求系统安装 `pkexec` 和 `setfacl`。Debian/Ubuntu 缺少 `setfacl` 时可安装 `acl` 软件包：
+
+```bash
+sudo apt install acl
+```
+
+如果不希望自动授权，选择“复制手动命令”，检查命令指向当前 VS Code 安装目录后再执行。BGGo 使用 ACL 只为当前用户开放检测到的工作台入口文件和目录。
+
+### 提示无法加载 `vscode-userdata:`
+
+当前扩展会把旧的 `vscode-userdata:` 导入自动迁移为 `file:` 导入。运行 `BGGo: 重新生成壁纸样式`，再重新加载窗口。如果仍然出现，检查用户设置中的 `vscode_custom_css.imports`，确认没有其他扩展留下的失效地址。
+
+### 命令成功但图片没有显示
+
+依次检查：
+
+1. 原始图片仍存在，并且当前用户可读。
+2. `Custom CSS and JS Loader` 已启用，没有其他同类扩展同时接管工作台样式。
+3. 运行 `BGGo: 重新生成壁纸样式` 后重新加载窗口。
+4. VS Code 刚升级时，先运行权限修复，再重新生成样式。
+5. 临时禁用其他自定义 CSS、主题增强或工作台注入扩展，排除冲突。
+
+### VS Code 显示“安装似乎损坏”
+
+这是 `Custom CSS and JS Loader` 修改工作台文件后的已知副作用，不代表 BGGo 修改了源代码或上传了数据。确认 VS Code 来源和扩展可信后可以隐藏该提示；如果不接受此行为，请关闭壁纸并修复/重装 VS Code。
+
+## 报告问题时请提供
+
+- BGGo 桌面版本或 VS Code 扩展版本。
+- 操作系统、发行版、桌面环境及版本。
+- VS Code 版本和安装方式（deb、rpm、snap、Flatpak 等）。
+- 可以复现问题的步骤和完整错误文本。
+- 是否安装其他自定义 CSS/JS 或壁纸扩展。
+
+请不要提交个人图片、用户名、主目录完整路径、访问令牌或其他敏感信息。
