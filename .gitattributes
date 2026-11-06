@@ -1,0 +1,2 @@
+# Keep text files consistent across Linux and Windows checkouts (including gofmt).
+* text=auto eol=lf
