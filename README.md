@@ -2,7 +2,7 @@
 
 BGGo 是一个基于 [MyGo](https://github.com/egoist/mygo) 原生 UI 的跨平台壁纸工具。当前优先支持 Linux，Windows 已提供系统壁纸适配；VS Code 壁纸由仓库中的独立扩展负责。
 
-> 当前阶段：Alpha。核心流程已经可用，但尚未完成完整的真机兼容测试、自动发布、签名和自动更新，不建议作为稳定版分发。
+> 当前阶段：Alpha。核心流程已经可用，但尚未完成完整的真机兼容测试、正式发布验证、签名和自动更新，不建议作为稳定版分发。
 
 ## 当前功能
 
@@ -49,3 +49,7 @@ go run ./tools/genicon resources/icon.png
 
 VS Code 扩展的开发与打包方法见 `extensions/bggo-vscode/README.md`。
 
+
+## CI 与测试版发布
+
+GitHub Actions 在分支提交和 PR 时检查并打包桌面应用及 VS Code 扩展。推送 `desktop-vX.Y.Z` 或 `vscode-vX.Y.Z` Tag 后会生成带校验和的 Release 草稿；版本必须匹配组件配置。操作步骤与签名、商店发布的后续安排见 [发布与更新方案](docs/release-and-update.md)。

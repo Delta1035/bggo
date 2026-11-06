@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  desktop:
+    name: Desktop (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            platform: linux
+          - runner: windows-2022
+            platform: windows
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check formatting
+        shell: bash
+        run: |
+          files=$(git ls-files '*.go' | xargs gofmt -l)
+          if [ -n "$files" ]; then
+            printf '%s\n' "$files"
+            exit 1
+          fi
+      - run: go mod download
+      - run: go mod verify
+      - run: go test -race ./...
+      - run: go vet ./...
+      - run: go tool mygo vet
+      - name: Build installation packages
+        run: go tool mygo build -platform ${{ matrix.platform }}/amd64
+      - name: Collect distribution files
+        run: python scripts/package-desktop.py ${{ matrix.platform }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.platform }}-amd64
+          path: release-assets/*
+          if-no-files-found: error
+          retention-days: 14
+
+  vscode:
+    name: VS Code extension
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: extensions/bggo-vscode
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: extensions/bggo-vscode/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: extensions/bggo-vscode/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run check
+      - run: pnpm run package
+      - run: pnpm audit --prod
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vscode
+          path: extensions/bggo-vscode/*.vsix
+          if-no-files-found: error
+          retention-days: 14

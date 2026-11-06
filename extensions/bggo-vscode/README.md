@@ -22,5 +22,5 @@ Linux 上 BGGo 通过 `pkexec` 和 `setfacl` 只为当前用户开放 VS Code �
 
 > Custom CSS and JS Loader 的工作方式会让 VS Code 显示“安装似乎损坏”的提示，这是加载工作台 CSS 的已知副作用。关闭壁纸后可重新安装 VS Code 恢复官方文件。
 
-完整的使用、关闭和故障排查说明见 [`../../docs/user-guide.md`](../../docs/user-guide.md)，架构与权限边界见 [`../../docs/architecture.md`](../../docs/architecture.md)。
+源码仓库中的 `docs/user-guide.md` 提供完整的使用、关闭和故障排查说明，`docs/architecture.md` 介绍架构与权限边界。
 

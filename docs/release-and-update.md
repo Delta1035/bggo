@@ -1,6 +1,44 @@
 # 发布与更新方案
 
-本文先定义目标流程。仓库目前尚未具备完整的自动发布、签名和自动更新能力，不能把下面的目标流程描述成已经上线。
+仓库现已配置 GitHub Actions CI 和 Release 草稿工作流。代码签名、扩展商店发布、自动更新及正式版推广仍是后续工作。工作流需推送到 GitHub 后验证首次运行；本地构建通过不代表 GitHub 托管环境已经验证。
+
+## 已实现的 CI 与打包
+
+- `.github/workflows/ci.yml`：分支 push、PR 和手动运行时触发，也供发布工作流复用。
+- 桌面应用在 Ubuntu 24.04 和 Windows Server 2022 的 amd64 runner 上分别执行格式检查、依赖校验、竞态测试、Go vet、MyGo vet 和安装包构建。
+- 扩展使用 Node.js 24 和 `package.json` 中指定的 pnpm，通过冻结锁文件安装、TypeScript 检查、VSIX 打包和生产依赖审计。
+- 构建产物作为 Actions artifacts 保留 14 天。普通 CI 只有仓库读取权限，不创建 Release。
+- Go 版本直接读取 `go.mod`。MyGo 会生成 Linux `.deb`、`.tar.gz` 和 `install.sh`，Windows NSIS 安装程序；Windows runner 缺少 NSIS 时 MyGo 会自动下载。
+- `scripts/package-desktop.py` 校验预期安装包存在，并将 Windows 可执行程序和资源文件打成便携 ZIP。
+
+## 如何发测试版
+
+1. 桌面修改 `mygo.json`，扩展修改 `extensions/bggo-vscode/package.json`；两个版本独立维护。补充发布说明或 `CHANGELOG.md`。
+2. 提交修改并确认 CI 通过，然后在对应提交上打 Tag。例如：
+
+   ```bash
+   # 桌面 0.1.0；只在确实准备发布该版本时执行
+   git tag desktop-v0.1.0
+   git push origin desktop-v0.1.0
+   # 扩展则使用 vscode-v0.1.5（须匹配 package.json）
+   ```
+
+3. `.github/workflows/release.yml` 校验 Tag 与组件版本完全一致，重新运行完整 CI，再仅收集该组件产物。当前接受数字形式的 `X.Y.Z`；Alpha 状态通过 GitHub prerelease 标记表达，暂不接受带后缀的 Tag。
+4. 自动生成 **draft + prerelease**，附带 `SHA256SUMS.txt`、记录提交 SHA 和 Actions 链接的 `BUILD-INFO.txt`。这些信息不是代码签名或构建来源认证。
+5. 下载并校验文件（Linux 使用 `sha256sum --check SHA256SUMS.txt`），完成安装、启动、升级和卸载测试，编辑发布说明，再手工发布草稿。当前产物未签名，应保留 prerelease 标记。
+
+工作流仅发布阶段具有 `contents: write`，使用 GitHub 自带的 `GITHUB_TOKEN`，不需要额外 PAT。建议为发布 Tag 设置 repository ruleset，限制创建、修改和删除权限，并为默认分支启用 CI 必须通过的规则。仓库组织策略必须允许工作流创建 Release。
+
+同一 Tag 的并发发布会串行执行；已有 Release 时会报错，不覆盖已有附件。若草稿创建后需重试，先检查内容，确认是失败的草稿后删除草稿再重跑；已公开版本应使用新版本号。
+
+## 打包发版调研结论
+
+直接复用 MyGo 已有打包能力即可，无需引入另一套桌面打包框架。当前先支持 Linux/Windows amd64，不宣称已验证其他架构或 GUI 真机兼容性。
+
+- **Windows 签名**：MyGo 支持签名配置；后续需要证书、受保护的签名凭据及时间戳服务，便携程序与安装程序均需签名。
+- **扩展商店**：VSIX 可先离线分发。Marketplace 需要确认 `bggo` publisher 所有权和发布凭据；Open VSX 需要对应 namespace 与令牌。建议后续用受保护 environment 单独执行商店发布。
+- **自动更新**：MyGo v0.5.5 已有签名更新归档、清单和增量更新能力，应优先评估复用。当前 `mygo.json` 未配置 updates，应用也未接入更新交互，因此此次不生成或发布更新清单。
+- **正式发版**：补齐签名、真机验证和维护记录后再建立稳定渠道。以下是后续目标设计，不代表当前已经实现。
 
 ## 版本策略
 
