@@ -13,10 +13,10 @@ import (
 )
 
 const (
-	SettingWallpaperPath   = "bggo.wallpaper.path"
-	SettingOpacity         = "bggo.wallpaper.opacity"
-	SettingBlur            = "bggo.wallpaper.blur"
-	SettingPosition        = "bggo.wallpaper.position"
+	SettingWallpaperPath    = "bggo.wallpaper.path"
+	SettingOpacity          = "bggo.wallpaper.opacity"
+	SettingBlur             = "bggo.wallpaper.blur"
+	SettingPosition         = "bggo.wallpaper.position"
 	SettingCustomCSSImports = "vscode_custom_css.imports"
 
 	DefaultOpacity  = 0.16

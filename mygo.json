@@ -2,6 +2,10 @@
   "name": "BGGo",
   "identifier": "app.bggo.wallpaper",
   "version": "0.1.0",
-  "out": "build"
+  "out": "build",
+  "updates": {
+    "publicKey": "Q6BKxOcOtIoRKdZIpkmUZzK6SePGA7EUGjIxgdjoIQ4=",
+    "github": "Delta1035/bggo",
+    "tagPrefix": "desktop-v"
+  }
 }
-

@@ -1,6 +1,6 @@
 # 发布与更新方案
 
-仓库现已配置 GitHub Actions CI 和 Release 草稿工作流。代码签名、扩展商店发布、自动更新及正式版推广仍是后续工作。工作流需推送到 GitHub 后验证首次运行；本地构建通过不代表 GitHub 托管环境已经验证。
+仓库现已配置 GitHub Actions CI、Release 草稿工作流与桌面自动更新。代码签名、扩展商店发布及正式版推广仍是后续工作。工作流需推送到 GitHub 后验证首次运行；本地构建通过不代表 GitHub 托管环境已经验证。
 
 ## 已实现的 CI 与打包
 
@@ -37,7 +37,7 @@
 
 - **Windows 签名**：MyGo 支持签名配置；后续需要证书、受保护的签名凭据及时间戳服务，便携程序与安装程序均需签名。
 - **扩展商店**：VSIX 可先离线分发。Marketplace 需要确认 `bggo` publisher 所有权和发布凭据；Open VSX 需要对应 namespace 与令牌。建议后续用受保护 environment 单独执行商店发布。
-- **自动更新**：MyGo v0.5.5 已有签名更新归档、清单和增量更新能力，应优先评估复用。当前 `mygo.json` 未配置 updates，应用也未接入更新交互，因此此次不生成或发布更新清单。
+- **自动更新**：已接入 MyGo 原生更新体系（`mygo.json` 已配置 `updates` 且集成了 `github.com/egoist/mygo/plugins/updater/native` 原生更新窗口）。通过 `go tool mygo keygen` 生成 Ed25519 签名密钥对，在构建时通过环境变量 `MYGO_UPDATER_PRIVATE_KEY` 签署产物并生成 `update-<target>.json` 清单；应用支持每日后台静默检查与手动菜单/界面按钮触发更新检查。
 - **正式发版**：补齐签名、真机验证和维护记录后再建立稳定渠道。以下是后续目标设计，不代表当前已经实现。
 
 ## 版本策略

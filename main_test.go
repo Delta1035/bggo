@@ -19,6 +19,7 @@ func TestInitialView(t *testing.T) {
 		"应用到桌面",
 		"映射到 VS Code",
 		"同步到 VS Code",
+		"检查更新",
 	} {
 		if !tt.HasText(text) {
 			t.Errorf("missing text %q; texts = %q", text, tt.Texts())
@@ -76,4 +77,23 @@ func TestApplyVSCodeService(t *testing.T) {
 	}
 	// Calling applyVSCode should handle background execution without crashing when window is nil
 	a.applyVSCode()
+}
+
+func TestCheckForUpdates(t *testing.T) {
+	called := false
+	a := &application{
+		checkUpdate: func() {
+			called = true
+		},
+	}
+	a.checkForUpdates()
+	if !called {
+		t.Errorf("expected checkUpdate callback to be called")
+	}
+	if a.status != "正在检查应用更新…" {
+		t.Errorf("status = %q, want %q", a.status, "正在检查应用更新…")
+	}
+	if a.error {
+		t.Errorf("expected error=false")
+	}
 }

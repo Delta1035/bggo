@@ -10,26 +10,33 @@ import (
 	"bggo/internal/vscode"
 	"bggo/internal/wallpaper"
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/plugins/updater"
+	"github.com/egoist/mygo/plugins/updater/native"
 	"github.com/egoist/mygo/ui"
 )
 
 type application struct {
-	window     *mygo.Window
-	store      *library.Store
-	setter     wallpaper.Service
-	vscode     vscode.Service
-	recent     []string
-	selected   string
-	preview    *ui.Bitmap
-	fit        string
-	syncVSCode bool
-	busy       bool
-	status     string
-	error      bool
+	window      *mygo.Window
+	store       *library.Store
+	setter      wallpaper.Service
+	vscode      vscode.Service
+	recent      []string
+	selected    string
+	preview     *ui.Bitmap
+	fit         string
+	syncVSCode  bool
+	busy        bool
+	status      string
+	error       bool
+	checkUpdate func()
 }
 
 func newApplication() *application {
-	a := &application{fit: "覆盖", status: "选择一张图片开始"}
+	a := &application{
+		fit:         "覆盖",
+		status:      "选择一张图片开始",
+		checkUpdate: updater.CheckForUpdates,
+	}
 	store, err := library.NewStore()
 	if err != nil {
 		a.setStatus("无法打开壁纸库: "+err.Error(), true)
@@ -73,7 +80,12 @@ func (a *application) view(c *ui.Context) {
 					}
 				}
 			})
-			ui.Text(c, "Linux 优先 · Windows 已适配").FontSize(11).TextColor(t.TextMuted)
+			ui.Column(c).Gap(8).Children(func() {
+				if ui.Button(c, "检查更新").FillWidth().Clicked() {
+					a.checkForUpdates()
+				}
+				ui.Text(c, "Linux 优先 · Windows 已适配").FontSize(11).TextColor(t.TextMuted)
+			})
 		})
 
 		ui.Column(c).Grow(1).FillHeight().Padding(30).Gap(18).Children(func() {
@@ -241,6 +253,13 @@ func (a *application) setStatus(message string, isError bool) {
 	a.status, a.error = message, isError
 }
 
+func (a *application) checkForUpdates() {
+	a.setStatus("正在检查应用更新…", false)
+	if a.checkUpdate != nil {
+		a.checkUpdate()
+	}
+}
+
 func selectedLabel(path string) string {
 	if path == "" {
 		return "选择本地图片并预览"
@@ -260,8 +279,19 @@ func previewFit(value string) ui.Fit {
 }
 
 func main() {
+	mygo.Use(native.Plugin)
 	a := newApplication()
 	mygo.App.WhenReady(func() {
+		mygo.App.SetMenu(mygo.NewMenu([]*mygo.MenuItem{
+			{Label: "BGGo", Submenu: []*mygo.MenuItem{
+				{Role: mygo.RoleAbout},
+				updater.MenuItem(),
+				mygo.Separator(),
+				{Role: mygo.RoleQuit},
+			}},
+			{Role: mygo.RoleEditMenu},
+			{Role: mygo.RoleWindowMenu},
+		}))
 		a.window = mygo.NewWindow(mygo.WindowOptions{
 			Title:     "BGGo 壁纸",
 			Width:     1000,

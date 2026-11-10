@@ -45,6 +45,8 @@ jobs:
       - run: go vet ./...
       - run: go tool mygo vet
       - name: Build installation packages
+        env:
+          MYGO_UPDATER_PRIVATE_KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
         run: go tool mygo build -platform ${{ matrix.platform }}/amd64
       - name: Collect distribution files
         run: python scripts/package-desktop.py ${{ matrix.platform }}

@@ -6,3 +6,6 @@ mygo_windows_*.syso
 *.vsix
 
 /release-assets/
+*.key
+mygo-update.key
+

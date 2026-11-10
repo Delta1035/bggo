@@ -22,6 +22,10 @@ for pattern in patterns:
 for package in packages:
     # GitHub replaces spaces in release asset names with dots. Normalize before hashing.
     shutil.copy2(package, out / package.name.replace(" ", "."))
+for update_file in stage.glob("update-*.json"):
+    shutil.copy2(update_file, out / update_file.name)
+for delta_file in stage.glob("*.delta"):
+    shutil.copy2(delta_file, out / delta_file.name)
 if platform == "windows":
     if not (stage / "BGGo.exe").is_file():
         raise SystemExit("Missing Windows executable")
