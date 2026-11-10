@@ -10,7 +10,8 @@ import (
 const maxRecent = 20
 
 type State struct {
-	Recent []string `json:"recent"`
+	Recent     []string `json:"recent"`
+	SyncVSCode bool     `json:"sync_vscode,omitempty"`
 }
 
 type Store struct {
@@ -52,15 +53,53 @@ func (s *Store) Add(path string) (State, error) {
 		}
 	}
 	state.Recent = next
-	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
-		return State{}, err
-	}
-	data, err := json.MarshalIndent(state, "", "  ")
-	if err != nil {
-		return State{}, err
-	}
-	if err := os.WriteFile(s.path, data, 0o600); err != nil {
+	if err := s.save(state); err != nil {
 		return State{}, err
 	}
 	return state, nil
+}
+
+func (s *Store) SetSyncVSCode(enabled bool) (State, error) {
+	state, err := s.Load()
+	if err != nil {
+		return State{}, err
+	}
+	state.SyncVSCode = enabled
+	if err := s.save(state); err != nil {
+		return State{}, err
+	}
+	return state, nil
+}
+
+func (s *Store) save(state State) error {
+	dir := filepath.Dir(s.path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	data, err := json.MarshalIndent(state, "", "  ")
+	if err != nil {
+		return err
+	}
+	tmp, err := os.CreateTemp(dir, filepath.Base(s.path)+".tmp-*")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName)
+
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Chmod(tmpName, 0o600); err != nil {
+		return err
+	}
+	return os.Rename(tmpName, s.path)
 }

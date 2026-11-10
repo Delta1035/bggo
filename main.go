@@ -7,22 +7,25 @@ import (
 	"path/filepath"
 
 	"bggo/internal/library"
+	"bggo/internal/vscode"
 	"bggo/internal/wallpaper"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
 
 type application struct {
-	window   *mygo.Window
-	store    *library.Store
-	setter   wallpaper.Service
-	recent   []string
-	selected string
-	preview  *ui.Bitmap
-	fit      string
-	busy     bool
-	status   string
-	error    bool
+	window     *mygo.Window
+	store      *library.Store
+	setter     wallpaper.Service
+	vscode     vscode.Service
+	recent     []string
+	selected   string
+	preview    *ui.Bitmap
+	fit        string
+	syncVSCode bool
+	busy       bool
+	status     string
+	error      bool
 }
 
 func newApplication() *application {
@@ -38,6 +41,7 @@ func newApplication() *application {
 		a.setStatus("无法读取最近壁纸: "+err.Error(), true)
 		return a
 	}
+	a.syncVSCode = state.SyncVSCode
 	for _, path := range state.Recent {
 		if _, err := os.Stat(path); err == nil {
 			a.recent = append(a.recent, path)
@@ -94,14 +98,20 @@ func (a *application) view(c *ui.Context) {
 				ui.Image(c, a.preview).Fill().Fit(previewFit(a.fit)).Label("所选壁纸预览")
 			})
 
-			ui.Row(c).AlignItems(ui.Center).Gap(12).Children(func() {
+			ui.Row(c).AlignItems(ui.Center).Gap(10).Children(func() {
 				statusColor := t.TextMuted
 				if a.error {
 					statusColor = t.Danger
 				}
 				ui.Text(c, a.status).Grow(1).FontSize(12).TextColor(statusColor).SingleLine()
+				if ui.Checkbox(c, &a.syncVSCode, "同步到 VS Code").Changed() {
+					a.toggleSyncVSCode()
+				}
 				if ui.Button(c, "在文件夹中显示").Disabled(a.selected == "").Clicked() {
 					mygo.Shell.ShowItemInFolder(a.selected)
+				}
+				if ui.Button(c, "映射到 VS Code").Disabled(a.selected == "" || a.busy).Clicked() {
+					a.applyVSCode()
 				}
 				label := "应用到桌面"
 				if a.busy {
@@ -153,27 +163,77 @@ func (a *application) loadWallpaper(path string) {
 	a.setStatus("准备应用到桌面", false)
 }
 
+func (a *application) toggleSyncVSCode() {
+	if a.store != nil {
+		_, _ = a.store.SetSyncVSCode(a.syncVSCode)
+	}
+}
+
+func (a *application) applyVSCode() {
+	path := a.selected
+	if path == "" {
+		return
+	}
+	a.busy = true
+	a.setStatus("正在映射到 VS Code 背景…", false)
+	go func() {
+		report, err := a.vscode.Apply(path)
+		if a.window != nil {
+			a.window.Update(func() {
+				a.busy = false
+				if err != nil {
+					a.setStatus("映射到 VS Code 失败: "+err.Error(), true)
+					return
+				}
+				if !report.ExtensionInstalled {
+					a.setStatus("已写入 VS Code 配置（未检测到 BGGo 插件，请在 VS Code 安装生效）", false)
+				} else {
+					a.setStatus("已映射到 VS Code 背景（在 VS Code 中重新加载生效）", false)
+				}
+			})
+		}
+	}()
+}
+
 func (a *application) applyWallpaper() {
 	path := a.selected
 	a.busy = true
 	a.setStatus("正在设置系统壁纸…", false)
+	syncVSCode := a.syncVSCode
 	go func() {
 		err := a.setter.Set(path)
-		a.window.Update(func() {
-			a.busy = false
-			if err != nil {
-				a.setStatus(err.Error(), true)
-				return
-			}
-			a.setStatus("壁纸已应用", false)
-			if a.store != nil {
-				if state, saveErr := a.store.Add(path); saveErr == nil {
-					a.recent = state.Recent
-				} else {
-					a.setStatus("壁纸已应用，但保存历史记录失败: "+saveErr.Error(), true)
+		var vscodeErr error
+		var vscodeReport *vscode.ApplyReport
+		if err == nil && syncVSCode {
+			vscodeReport, vscodeErr = a.vscode.Apply(path)
+		}
+		if a.window != nil {
+			a.window.Update(func() {
+				a.busy = false
+				if err != nil {
+					a.setStatus(err.Error(), true)
+					return
 				}
-			}
-		})
+				if syncVSCode {
+					if vscodeErr != nil {
+						a.setStatus("壁纸已应用，但映射到 VS Code 失败: "+vscodeErr.Error(), true)
+					} else if vscodeReport != nil && !vscodeReport.ExtensionInstalled {
+						a.setStatus("壁纸已应用，已写入 VS Code 配置（未检测到插件）", false)
+					} else {
+						a.setStatus("壁纸已应用，并已映射到 VS Code 背景", false)
+					}
+				} else {
+					a.setStatus("壁纸已应用", false)
+				}
+				if a.store != nil {
+					if state, saveErr := a.store.Add(path); saveErr == nil {
+						a.recent = state.Recent
+					} else {
+						a.setStatus("壁纸已应用，但保存历史记录失败: "+saveErr.Error(), true)
+					}
+				}
+			})
+		}
 	}()
 }
 

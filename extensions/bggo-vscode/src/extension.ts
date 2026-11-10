@@ -16,7 +16,9 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("bggo.disableWallpaper", () => disableWallpaper(context)),
     vscode.commands.registerCommand("bggo.repairPermissions", () => repairWorkbenchPermissions()),
     vscode.workspace.onDidChangeConfiguration((event) => {
-      if (
+      if (event.affectsConfiguration("bggo.wallpaper.path")) {
+        void refreshWallpaper(context, true);
+      } else if (
         event.affectsConfiguration("bggo.wallpaper.opacity") ||
         event.affectsConfiguration("bggo.wallpaper.blur") ||
         event.affectsConfiguration("bggo.wallpaper.position")

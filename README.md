@@ -11,7 +11,8 @@ BGGo 是一个基于 [MyGo](https://github.com/egoist/mygo) 原生 UI 的跨平�
 - 保存最近使用的壁纸
 - Linux：GNOME/Ubuntu、KDE Plasma、XFCE、Cinnamon、MATE
 - Windows：通过系统 API 设置桌面壁纸
-- VS Code：通过 `extensions/bggo-vscode` 选择、启用和关闭编辑器壁纸
+- VS Code 联动：支持在桌面端一键将壁纸映射到 VS Code 插件背景，或勾选自动同步
+- VS Code 扩展：通过 `extensions/bggo-vscode` 选择、启用和关闭编辑器壁纸
 
 ## 文档
 

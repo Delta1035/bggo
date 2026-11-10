@@ -24,11 +24,16 @@
 
 ### 启用
 
-1. 安装 `BGGo Wallpaper` 和依赖扩展 `Custom CSS and JS Loader`。
-2. 打开命令面板，运行 `BGGo: 选择 VS Code 壁纸`。
-3. 选择本地图片。
-4. Linux 用户如果看到授权提示，检查说明后选择“一键授权并继续”。
-5. 按提示重新加载 VS Code 窗口。
+可以通过以下两种方式之一设置 VS Code 壁纸：
+
+- **方式一（从桌面端一键映射）**：
+  在 BGGo 桌面端中选择壁纸后，点击“**映射到 VS Code**”按钮即可直接同步。如果勾选了“**同步到 VS Code**”，则每次点击“应用到桌面”时都会自动将壁纸映射到 VS Code 背景。
+- **方式二（从 VS Code 命令面板设置）**：
+  1. 安装 `BGGo Wallpaper` 和依赖扩展 `Custom CSS and JS Loader`。
+  2. 打开命令面板，运行 `BGGo: 选择 VS Code 壁纸`。
+  3. 选择本地图片。
+
+Linux 用户如果首次使用看到工作台写权限授权提示，检查说明后选择“一键授权并继续”。之后按提示重新加载 VS Code 窗口生效。
 
 在设置中搜索 `BGGo Wallpaper` 可以修改：
 

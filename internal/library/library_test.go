@@ -20,3 +20,30 @@ func TestAddMovesExistingItemToFront(t *testing.T) {
 		t.Fatalf("recent = %#v", state.Recent)
 	}
 }
+
+func TestSetSyncVSCode(t *testing.T) {
+	s := &Store{path: filepath.Join(t.TempDir(), "library.json")}
+	state, err := s.SetSyncVSCode(true)
+	if err != nil {
+		t.Fatalf("SetSyncVSCode(true) error: %v", err)
+	}
+	if !state.SyncVSCode {
+		t.Errorf("expected state.SyncVSCode=true")
+	}
+
+	loaded, err := s.Load()
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+	if !loaded.SyncVSCode {
+		t.Errorf("expected loaded.SyncVSCode=true")
+	}
+
+	state, err = s.SetSyncVSCode(false)
+	if err != nil {
+		t.Fatalf("SetSyncVSCode(false) error: %v", err)
+	}
+	if state.SyncVSCode {
+		t.Errorf("expected state.SyncVSCode=false")
+	}
+}
