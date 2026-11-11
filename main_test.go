@@ -464,3 +464,197 @@ func TestLoadOnlineCategoriesAndWallpapers(t *testing.T) {
 		t.Errorf("expected wallpaper title 'Bing今日大图', got %q", wps[0].Title)
 	}
 }
+
+func TestFavoritesAndSubTabs(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := library.NewStoreWithPath(filepath.Join(tmpDir, "library.json"))
+	_, _, _ = store.ToggleFavorite("/tmp/fav1.png")
+
+	a := newApplication()
+	a.store = store
+	a.tab = "local"
+	a.localSubTab = "recent"
+	a.recent = []string{"/tmp/recent1.png"}
+	a.favorites = []string{"/tmp/fav1.png"}
+
+	// 1. 测试测试器渲染 "🕒 最近 (1)" 和 "❤️ 收藏 (1)"
+	tt := ui.NewTester(a.view, 1000, 680)
+	if !tt.HasText("🕒 最近 (1)") {
+		t.Errorf("missing text '🕒 最近 (1)'")
+	}
+	if !tt.HasText("❤️ 收藏 (1)") {
+		t.Errorf("missing text '❤️ 收藏 (1)'")
+	}
+	if !tt.HasText("每日自动必应壁纸") {
+		t.Errorf("missing text '每日自动必应壁纸'")
+	}
+
+	// 2. 切换收藏
+	testPath := "/tmp/test_fav.png"
+	a.toggleFavorite(testPath)
+	if !a.IsFavorite(testPath) {
+		t.Errorf("expected testPath to be favorited")
+	}
+	if len(a.Favorites()) != 2 {
+		t.Errorf("expected 2 favorites, got %d", len(a.Favorites()))
+	}
+
+	// 3. 再次切换取消收藏
+	a.toggleFavorite(testPath)
+	if a.IsFavorite(testPath) {
+		t.Errorf("expected testPath to be removed from favorites")
+	}
+}
+
+func TestAutoBingSync(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := library.NewStoreWithPath(filepath.Join(tmpDir, "library.json"))
+
+	fakeBingJSON := `{
+		"images": [
+			{"startdate": "20261111", "url": "/bing_daily.png", "title": "今日必应美图", "hsh": "bing_hsh_1"}
+		]
+	}`
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "HPImageArchive.aspx") {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(fakeBingJSON))
+		} else if strings.Contains(r.URL.Path, "bing_daily.png") {
+			w.Header().Set("Content-Type", "image/png")
+			_, _ = w.Write(generateTestPNG())
+		} else {
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	onlineSvc, err := online.NewService(filepath.Join(tmpDir, "cache"))
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+	onlineSvc.Client = srv.Client()
+	onlineSvc.Bing.BaseURL = srv.URL
+	onlineSvc.Bing.Client = srv.Client()
+
+	mockSetter := &testWallpaperSetter{}
+	a := newApplication()
+	a.store = store
+	a.onlineSvc = onlineSvc
+	a.setter = mockSetter
+
+	a.autoBing = true
+	a.toggleAutoBing()
+	if !a.AutoBing() {
+		t.Errorf("expected autoBing = true")
+	}
+
+	// 等待自动同步完成
+	deadline := time.Now().Add(3 * time.Second)
+	for a.Selected() == "" && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	if mockSetter.Path() == "" {
+		t.Fatalf("expected setter to be called by autoBing")
+	}
+	if !strings.Contains(a.Status(), "已自动同步今日必应壁纸") {
+		t.Errorf("unexpected status: %s", a.Status())
+	}
+}
+
+func TestBottomBarFavAndExport(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := library.NewStoreWithPath(filepath.Join(tmpDir, "library.json"))
+	a := newApplication()
+	a.store = store
+	a.selected = filepath.Join(tmpDir, "test.png")
+
+	tt := ui.NewTester(a.view, 1000, 680)
+	if !tt.HasText("🤍 收藏") {
+		t.Errorf("missing text '🤍 收藏'")
+	}
+	if !tt.HasText("💾 另存为") {
+		t.Errorf("missing text '💾 另存为'")
+	}
+}
+
+func TestPreviewStatusLabel_AppliedVsPreviewing(t *testing.T) {
+	tmpDir := t.TempDir()
+	pngPath := filepath.Join(tmpDir, "wallpaper.png")
+	_ = os.WriteFile(pngPath, generateTestPNG(), 0o644)
+
+	a := newApplication()
+	a.loadWallpaper(pngPath)
+
+	// 1. 此时为刚载入预览态，尚未应用到系统桌面
+	a.applied = ""
+	tt := ui.NewTester(a.view, 1000, 680)
+	if !tt.HasText("预览模式 (未应用)") {
+		t.Errorf("expected '预览模式 (未应用)' badge when wallpaper is not yet applied")
+	}
+	if tt.HasText("当前桌面生效中") {
+		t.Errorf("did not expect '当前桌面生效中' before wallpaper applied")
+	}
+
+	// 2. 模拟应用成功
+	a.applied = pngPath
+	tt = ui.NewTester(a.view, 1000, 680)
+	if !tt.HasText("当前桌面生效中") {
+		t.Errorf("expected '当前桌面生效中' badge when selected == applied")
+	}
+	if tt.HasText("预览模式 (未应用)") {
+		t.Errorf("did not expect '预览模式 (未应用)' after wallpaper applied")
+	}
+}
+
+func TestClearRecent_Workflow(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := library.NewStoreWithPath(filepath.Join(tmpDir, "library.json"))
+	a := newApplication()
+	a.store = store
+	a.recent = []string{"/path/1.png", "/path/2.png"}
+	a.localSubTab = "recent"
+
+	tt := ui.NewTester(a.view, 1000, 680)
+	if !tt.HasText("清空") {
+		t.Fatalf("expected '清空' button when recent list is not empty")
+	}
+
+	if err := tt.Click("清空"); err != nil {
+		t.Fatalf("failed to click '清空': %v", err)
+	}
+
+	if len(a.recent) != 0 {
+		t.Errorf("expected a.recent to be empty after clear, got %v", a.recent)
+	}
+	if a.Status() != "已清空最近壁纸记录" {
+		t.Errorf("status = %q, want '已清空最近壁纸记录'", a.Status())
+	}
+}
+
+func TestFitSelectorVisualLabels(t *testing.T) {
+	a := newApplication()
+	tt := ui.NewTester(a.view, 1000, 680)
+
+	for _, label := range []string{"⬒ 覆盖", "⬓ 适应", "⬖ 拉伸"} {
+		if !tt.HasText(label) {
+			t.Errorf("missing fit mode label %q", label)
+		}
+	}
+
+	if err := tt.Click("⬓ 适应"); err != nil {
+		t.Fatalf("failed to click '⬓ 适应': %v", err)
+	}
+	if a.fit != "适应" {
+		t.Errorf("expected fit='适应', got %q", a.fit)
+	}
+}
+
+func TestDropHintInSidebar(t *testing.T) {
+	a := newApplication()
+	tt := ui.NewTester(a.view, 1000, 680)
+	if !tt.HasText("或直接拖放图片到窗口") {
+		t.Errorf("missing drop hint '或直接拖放图片到窗口' in local view")
+	}
+}

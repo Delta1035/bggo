@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 	"log"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 
 	"bggo/internal/library"
 	"bggo/internal/online"
@@ -19,6 +21,9 @@ import (
 	"github.com/egoist/mygo/plugins/updater/native"
 	"github.com/egoist/mygo/ui"
 )
+
+//go:embed resources/icon.png
+var appIconBytes []byte
 
 const AppVersion = "v0.2.4"
 
@@ -32,14 +37,20 @@ type application struct {
 	setter      wallpaperSetter
 	vscode      vscode.Service
 	recent      []string
+	favorites   []string
 	selected    string
+	applied     string // 当前桌面已生效的壁纸路径
 	preview     *ui.Bitmap
 	fit         string
 	syncVSCode  bool
+	autoBing    bool
 	busy        bool
 	status      string
 	error       bool
 	checkUpdate func()
+
+	// 本地浏览子标签
+	localSubTab string // "recent" | "favorites"
 
 	// 在线壁纸相关
 	onlineSvc        *online.Service
@@ -55,7 +66,8 @@ type application struct {
 	thumbLoading     map[string]bool
 	thumbMu          sync.Mutex
 
-	mu sync.RWMutex
+	tray *mygo.Tray
+	mu   sync.RWMutex
 }
 
 func newApplication() *application {
@@ -65,6 +77,7 @@ func newApplication() *application {
 		status:       "选择一张图片开始",
 		checkUpdate:  updater.CheckForUpdates,
 		tab:          "local",
+		localSubTab:  "recent",
 		onlineView:   "grid",
 		onlinePage:   1,
 		thumbBitmaps: make(map[string]*ui.Bitmap),
@@ -87,10 +100,22 @@ func newApplication() *application {
 		return a
 	}
 	a.syncVSCode = state.SyncVSCode
+	a.autoBing = state.AutoBing
 	for _, path := range state.Recent {
 		if _, err := os.Stat(path); err == nil {
 			a.recent = append(a.recent, path)
 		}
+	}
+	if len(a.recent) > 0 {
+		a.applied = a.recent[0]
+	}
+	for _, path := range state.Favorites {
+		if _, err := os.Stat(path); err == nil {
+			a.favorites = append(a.favorites, path)
+		}
+	}
+	if a.autoBing {
+		go a.runAutoBingCheck()
 	}
 	return a
 }
@@ -151,6 +176,31 @@ func (a *application) Preview() *ui.Bitmap {
 	return a.preview
 }
 
+func (a *application) Favorites() []string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	favs := make([]string, len(a.favorites))
+	copy(favs, a.favorites)
+	return favs
+}
+
+func (a *application) IsFavorite(path string) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for _, fav := range a.favorites {
+		if fav == path {
+			return true
+		}
+	}
+	return false
+}
+
+func (a *application) AutoBing() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.autoBing
+}
+
 func (a *application) view(c *ui.Context) {
 	t := c.Theme()
 
@@ -206,18 +256,65 @@ func (a *application) drawSidebar(c *ui.Context, t *ui.Theme) {
 			if ui.PrimaryButton(c, "📁  选择本地图片").FillWidth().Height(36).Radius(8).Clicked() {
 				a.chooseWallpaper()
 			}
+			ui.Row(c).Justify(ui.Center).AlignItems(ui.Center).FillWidth().Children(func() {
+				ui.Text(c, "或直接拖放图片到窗口").FontSize(11).TextColor(t.TextMuted)
+			})
 
-			// 最近使用列表
-			ui.Column(c).Grow(1).Gap(6).FillWidth().Children(func() {
-				ui.Text(c, "最近使用").FontSize(11).Bold().TextColor(t.TextMuted)
-				ui.Scroll(c).Grow(1).Gap(4).Children(func() {
-					if len(a.recent) == 0 {
-						ui.Text(c, "还没有使用过壁纸").FontSize(12).TextColor(t.TextMuted).Margin(6, 0)
+			// 切换：[ 🕒 最近使用 | ❤️ 我的收藏 ]
+			ui.Box(c).Radius(6).Padding(2).Background(t.Border).FillWidth().Children(func() {
+				ui.Row(c).Gap(2).FillWidth().Children(func() {
+					isRecent := a.localSubTab == "recent"
+					btnRecent := ui.Button(c.Key("sub-recent"), fmt.Sprintf("🕒 最近 (%d)", len(a.recent))).Grow(1).Height(26).Radius(4)
+					if isRecent {
+						btnRecent.Background(t.Surface).TextColor(t.Text).Bold()
+					} else {
+						btnRecent.Background(t.Border).TextColor(t.TextMuted)
 					}
-					for _, path := range a.recent {
+					if btnRecent.Clicked() {
+						a.localSubTab = "recent"
+					}
+
+					isFav := a.localSubTab == "favorites"
+					btnFav := ui.Button(c.Key("sub-fav"), fmt.Sprintf("❤️ 收藏 (%d)", len(a.favorites))).Grow(1).Height(26).Radius(4)
+					if isFav {
+						btnFav.Background(t.Surface).TextColor(t.Text).Bold()
+					} else {
+						btnFav.Background(t.Border).TextColor(t.TextMuted)
+					}
+					if btnFav.Clicked() {
+						a.localSubTab = "favorites"
+					}
+				})
+			})
+
+			// 列表渲染 (最近使用 或 收藏夹)
+			ui.Column(c).Grow(1).Gap(6).FillWidth().Children(func() {
+				currentList := a.recent
+				emptyText := "还没有使用过壁纸"
+				if a.localSubTab == "favorites" {
+					currentList = a.favorites
+					emptyText = "还没有收藏任何壁纸"
+				} else if len(a.recent) > 0 {
+					ui.Row(c).AlignItems(ui.Center).FillWidth().Children(func() {
+						ui.Text(c, "历史记录").FontSize(11).Bold().TextColor(t.TextMuted)
+						ui.Spacer(c)
+						if ui.Button(c.Key("clear-recent"), "清空").Padding(1, 6).Radius(4).Clicked() {
+							a.clearRecent()
+						}
+					})
+				}
+				ui.Scroll(c).Grow(1).Gap(4).Children(func() {
+					if len(currentList) == 0 {
+						ui.Text(c, emptyText).FontSize(12).TextColor(t.TextMuted).Margin(6, 0)
+					}
+					for _, path := range currentList {
 						path := path
 						isSelected := a.selected == path
-						btn := ui.Button(c.Key(path), "🖼  "+filepath.Base(path)).FillWidth().Radius(6).Padding(6, 8).Tooltip(path)
+						icon := "🖼 "
+						if a.localSubTab == "favorites" {
+							icon = "❤️ "
+						}
+						btn := ui.Button(c.Key("item-"+path), icon+" "+filepath.Base(path)).FillWidth().Radius(6).Padding(6, 8).Tooltip(path)
 						if isSelected {
 							btn.Background(t.Accent).TextColor(t.AccentText)
 						} else {
@@ -271,6 +368,14 @@ func (a *application) drawSidebar(c *ui.Context, t *ui.Theme) {
 
 		// 3. 底部信息与检查更新
 		ui.Column(c).Gap(10).FillWidth().Children(func() {
+			// 每日必应自动更新
+			ui.Row(c).AlignItems(ui.Center).Gap(6).FillWidth().Children(func() {
+				if ui.Switch(c, &a.autoBing).Changed() {
+					a.toggleAutoBing()
+				}
+				ui.Text(c, "每日自动必应壁纸").FontSize(11).TextColor(t.TextMuted)
+			})
+
 			if ui.Button(c, "↻  检查更新").FillWidth().Height(32).Radius(6).Clicked() {
 				a.checkForUpdates()
 			}
@@ -363,23 +468,6 @@ func (a *application) drawOnlineMain(c *ui.Context, t *ui.Theme) {
 			if a.onlineView == "preview" {
 				ui.Row(c).Margin(0, 0, 0, 8).Children(func() {
 					a.drawFitSelector(c, t)
-				})
-			}
-
-			// 分页控件 (如果是 360 支持翻页，必应提供固定精选)
-			if a.selectedCategory.Source == "360" {
-				ui.Row(c).AlignItems(ui.Center).Gap(6).Margin(0, 0, 0, 8).Children(func() {
-					prevBtn := ui.Button(c.Key("page-prev"), "◀ 上一页").Padding(4, 8).Radius(6).Disabled(a.onlinePage <= 1 || a.loadingOnline)
-					if prevBtn.Clicked() && a.onlinePage > 1 {
-						a.onlinePage--
-						a.loadOnlineWallpapers(a.selectedCategory, a.onlinePage)
-					}
-					ui.Text(c, fmt.Sprintf("第 %d 页", a.onlinePage)).FontSize(12).TextColor(t.TextMuted)
-					nextBtn := ui.Button(c.Key("page-next"), "下一页 ▶").Padding(4, 8).Radius(6).Disabled(a.loadingOnline)
-					if nextBtn.Clicked() {
-						a.onlinePage++
-						a.loadOnlineWallpapers(a.selectedCategory, a.onlinePage)
-					}
 				})
 			}
 		})
@@ -492,11 +580,18 @@ func (a *application) drawLargePreviewBox(c *ui.Context, t *ui.Theme) {
 		resolutionText := fmt.Sprintf("%d × %d", w, h)
 
 		ui.Row(c).Padding(12, 14).FillWidth().Children(func() {
-			// 左上角悬浮胶囊：当前壁纸
+			// 左上角悬浮胶囊：区分“当前桌面生效中”与“预览中 (未应用)”
+			isApplied := a.applied != "" && a.selected == a.applied
+			dotColor := t.Accent
+			statusBadge := "预览模式 (未应用)"
+			if isApplied {
+				dotColor = t.Success
+				statusBadge = "当前桌面生效中"
+			}
 			ui.Box(c).Padding(3, 9).Radius(12).Background(t.Surface).Border(1, t.Border).Children(func() {
 				ui.Row(c).AlignItems(ui.Center).Gap(5).Children(func() {
-					ui.Box(c).Width(6).Height(6).Radius(3).Background(t.Success)
-					ui.Text(c, "当前壁纸").FontSize(11).Bold().TextColor(t.Text)
+					ui.Box(c).Width(6).Height(6).Radius(3).Background(dotColor)
+					ui.Text(c, statusBadge).FontSize(11).Bold().TextColor(t.Text)
 				})
 			})
 			ui.Spacer(c)
@@ -512,18 +607,25 @@ func (a *application) drawLargePreviewBox(c *ui.Context, t *ui.Theme) {
 func (a *application) drawFitSelector(c *ui.Context, t *ui.Theme) {
 	ui.Box(c).Radius(8).Padding(3).Background(t.Border).Children(func() {
 		ui.Row(c).Gap(2).Children(func() {
-			options := []string{"覆盖", "适应", "拉伸"}
+			options := []struct {
+				val   string
+				label string
+			}{
+				{"覆盖", "⬒ 覆盖"},
+				{"适应", "⬓ 适应"},
+				{"拉伸", "⬖ 拉伸"},
+			}
 			for _, opt := range options {
 				opt := opt
-				isSelected := a.fit == opt
-				btn := ui.Button(c.Key("seg-"+opt), opt).Padding(4, 12).Radius(6)
+				isSelected := a.fit == opt.val
+				btn := ui.Button(c.Key("seg-"+opt.val), opt.label).Padding(4, 12).Radius(6)
 				if isSelected {
 					btn.Background(t.Surface).TextColor(t.Text).Bold()
 				} else {
 					btn.Background(t.Border).TextColor(t.TextMuted)
 				}
 				if btn.Clicked() {
-					a.fit = opt
+					a.fit = opt.val
 				}
 			}
 		})
@@ -547,6 +649,23 @@ func (a *application) drawBottomBar(c *ui.Context, t *ui.Theme) {
 
 		ui.Spacer(c)
 
+		// 在线网格分页控件（放置于底部栏，符合用户自上而下的浏览动线）
+		if a.tab == "online" && a.onlineView == "grid" && a.selectedCategory.Source == "360" {
+			ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() {
+				prevBtn := ui.Button(c.Key("page-prev"), "◀ 上一页").Padding(4, 8).Radius(6).Disabled(a.onlinePage <= 1 || a.loadingOnline)
+				if prevBtn.Clicked() && a.onlinePage > 1 {
+					a.onlinePage--
+					a.loadOnlineWallpapers(a.selectedCategory, a.onlinePage)
+				}
+				ui.Text(c, fmt.Sprintf("第 %d 页", a.onlinePage)).FontSize(12).TextColor(t.TextMuted)
+				nextBtn := ui.Button(c.Key("page-next"), "下一页 ▶").Padding(4, 8).Radius(6).Disabled(a.loadingOnline)
+				if nextBtn.Clicked() {
+					a.onlinePage++
+					a.loadOnlineWallpapers(a.selectedCategory, a.onlinePage)
+				}
+			})
+		}
+
 		// 同步到 VS Code 开关
 		ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() {
 			if ui.Switch(c, &a.syncVSCode).Changed() {
@@ -554,6 +673,20 @@ func (a *application) drawBottomBar(c *ui.Context, t *ui.Theme) {
 			}
 			ui.Text(c, "同步到 VS Code").FontSize(12).TextColor(t.Text)
 		})
+
+		// 收藏与另存为
+		if a.selected != "" {
+			favLabel := "🤍 收藏"
+			if a.IsFavorite(a.selected) {
+				favLabel = "❤️ 已收藏"
+			}
+			if ui.Button(c.Key("btn-toggle-fav"), favLabel).Height(36).Radius(8).Clicked() {
+				a.toggleFavorite(a.selected)
+			}
+			if ui.Button(c.Key("btn-export"), "💾 另存为").Height(36).Radius(8).Clicked() {
+				a.exportWallpaper()
+			}
+		}
 
 		if ui.Button(c, "在文件夹中显示").Height(36).Radius(8).Disabled(a.selected == "").Clicked() {
 			mygo.Shell.ShowItemInFolder(a.selected)
@@ -624,7 +757,11 @@ func (a *application) drawTitleBar(c *ui.Context, t *ui.Theme) {
 				ui.Text(c, "✕").FontSize(12).TextColor(closeTextColor)
 			})
 			if closeBtn.Clicked() && a.window != nil {
-				a.window.Close()
+				if a.tray != nil {
+					a.window.Hide()
+				} else {
+					a.window.Close()
+				}
 			}
 		})
 	})
@@ -737,6 +874,7 @@ func (a *application) applyWallpaper() {
 				a.setStatus(err.Error(), true)
 				return
 			}
+			a.applied = path
 			if syncVSCode {
 				if vscodeErr != nil {
 					a.setStatus("壁纸已应用，但映射到 VS Code 失败: "+vscodeErr.Error(), true)
@@ -883,6 +1021,7 @@ func (a *application) applyOnlineWallpaper(item online.WallpaperItem) {
 				a.error = true
 				return
 			}
+			a.applied = localPath
 			if syncVSCode {
 				if vscodeErr != nil {
 					a.status = "壁纸已应用，但同步到 VS Code 失败: " + vscodeErr.Error()
@@ -1004,6 +1143,235 @@ func previewFit(value string) ui.Fit {
 	}
 }
 
+func (a *application) exportWallpaper() {
+	a.mu.Lock()
+	path := a.selected
+	win := a.window
+	a.mu.Unlock()
+
+	if path == "" || win == nil {
+		return
+	}
+	ext := filepath.Ext(path)
+	if ext == "" {
+		ext = ".jpg"
+	}
+	go func() {
+		dest, err := mygo.Dialog.Save(mygo.SaveDialogOptions{
+			Parent:      win,
+			Title:       "导出壁纸另存为",
+			DefaultPath: "wallpaper" + ext,
+			Filters: []mygo.FileFilter{{
+				Name:       "图片",
+				Extensions: []string{"jpg", "jpeg", "png", "webp", "bmp"},
+			}},
+		})
+		if err != nil || dest == "" {
+			return
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			a.update(func() {
+				a.status = "读取原始文件失败: " + err.Error()
+				a.error = true
+			})
+			return
+		}
+		if err := os.WriteFile(dest, data, 0o644); err != nil {
+			a.update(func() {
+				a.status = "保存文件失败: " + err.Error()
+				a.error = true
+			})
+			return
+		}
+		a.update(func() {
+			a.status = "已成功导出壁纸到: " + filepath.Base(dest)
+			a.error = false
+		})
+	}()
+}
+
+func (a *application) toggleFavorite(path string) {
+	if path == "" || a.store == nil {
+		return
+	}
+	state, isFav, err := a.store.ToggleFavorite(path)
+	if err != nil {
+		a.update(func() {
+			a.status = "更新收藏失败: " + err.Error()
+			a.error = true
+		})
+		return
+	}
+	a.update(func() {
+		a.favorites = state.Favorites
+		if isFav {
+			a.status = "已加入收藏夹"
+		} else {
+			a.status = "已从收藏夹移除"
+		}
+		a.error = false
+	})
+}
+
+func (a *application) clearRecent() {
+	if a.store == nil {
+		return
+	}
+	state, err := a.store.ClearRecent()
+	if err != nil {
+		a.update(func() {
+			a.status = "清空最近壁纸失败: " + err.Error()
+			a.error = true
+		})
+		return
+	}
+	a.update(func() {
+		a.recent = state.Recent
+		a.status = "已清空最近壁纸记录"
+		a.error = false
+	})
+}
+
+func (a *application) toggleAutoBing() {
+	if a.store == nil {
+		return
+	}
+	a.mu.Lock()
+	next := a.autoBing
+	a.mu.Unlock()
+	state, err := a.store.SetAutoBing(next)
+	if err == nil {
+		a.update(func() {
+			a.autoBing = state.AutoBing
+			if a.autoBing {
+				a.status = "已开启每日自动更新 Bing 壁纸"
+			} else {
+				a.status = "已关闭每日自动更新 Bing 壁纸"
+			}
+			a.error = false
+		})
+		if state.AutoBing {
+			go a.runAutoBingCheck()
+		}
+	}
+}
+
+func (a *application) runAutoBingCheck() {
+	if a.onlineSvc == nil {
+		return
+	}
+	items, err := a.onlineSvc.Bing.Fetch(context.Background(), "bing_daily", 1, 1)
+	if err != nil || len(items) == 0 {
+		return
+	}
+	today := items[0]
+	localPath, err := a.onlineSvc.DownloadWallpaper(context.Background(), today)
+	if err != nil {
+		return
+	}
+	if a.Selected() == localPath {
+		return
+	}
+	var bmp *ui.Bitmap
+	if data, err := os.ReadFile(localPath); err == nil {
+		bmp, _ = ui.DecodeBitmap(data)
+	}
+	_ = a.setter.Set(localPath)
+	var syncVSCode bool
+	a.mu.Lock()
+	syncVSCode = a.syncVSCode
+	a.mu.Unlock()
+	if syncVSCode {
+		_, _ = a.vscode.Apply(localPath)
+	}
+	a.update(func() {
+		a.selected = localPath
+		if bmp != nil {
+			a.preview = bmp
+		}
+		if a.store != nil {
+			if state, saveErr := a.store.Add(localPath); saveErr == nil {
+				a.recent = state.Recent
+			}
+		}
+		a.status = "已自动同步今日必应壁纸: " + today.Title
+		a.error = false
+	})
+}
+
+func (a *application) applyRandomWallpaper() {
+	if a.onlineSvc == nil {
+		return
+	}
+	go func() {
+		items, err := a.onlineSvc.Qihoo.Fetch(context.Background(), "9", 1, 30)
+		if err != nil || len(items) == 0 {
+			return
+		}
+		idx := time.Now().UnixNano() % int64(len(items))
+		a.applyOnlineWallpaper(items[idx])
+	}()
+}
+
+func (a *application) initTray() {
+	if len(appIconBytes) == 0 {
+		return
+	}
+	menu := mygo.NewMenu([]*mygo.MenuItem{
+		{
+			Label: "显示主窗口",
+			Click: func(item *mygo.MenuItem, win *mygo.Window) {
+				if a.window != nil {
+					a.window.Show()
+					a.window.Restore()
+					a.window.Focus()
+				}
+			},
+		},
+		{
+			Label: "设为今日必应壁纸",
+			Click: func(item *mygo.MenuItem, win *mygo.Window) {
+				go a.runAutoBingCheck()
+			},
+		},
+		{
+			Label: "随机换一张壁纸",
+			Click: func(item *mygo.MenuItem, win *mygo.Window) {
+				a.applyRandomWallpaper()
+			},
+		},
+		mygo.Separator(),
+		{
+			Label: "退出 BGGo",
+			Click: func(item *mygo.MenuItem, win *mygo.Window) {
+				mygo.App.Quit()
+			},
+		},
+	})
+
+	tray, err := mygo.NewTray(mygo.TrayOptions{
+		Icon:    appIconBytes,
+		ToolTip: "BGGo 壁纸",
+		Menu:    menu,
+	})
+	if err != nil {
+		return
+	}
+	a.tray = tray
+	tray.OnClick(func() {
+		if a.window != nil {
+			if a.window.IsVisible() && !a.window.IsMinimized() {
+				a.window.Hide()
+			} else {
+				a.window.Show()
+				a.window.Restore()
+				a.window.Focus()
+			}
+		}
+	})
+}
+
 func categoryIcon(name string) string {
 	switch {
 	case strings.Contains(name, "必应"):
@@ -1073,6 +1441,27 @@ func main() {
 			Content:   ui.View(a.view),
 		})
 		a.window.SetMenu(nil)
+
+		a.window.OnFileDrop(func(e *mygo.FileDropEvent) {
+			for _, p := range e.Paths {
+				ext := strings.ToLower(filepath.Ext(p))
+				if ext == ".jpg" || ext == ".jpeg" || ext == ".png" || ext == ".webp" || ext == ".bmp" {
+					a.update(func() {
+						a.tab = "local"
+						a.loadWallpaper(p)
+					})
+					break
+				}
+			}
+		})
+
+		a.window.OnClose(func(e *mygo.CloseEvent) {
+			if a.tray != nil {
+				e.PreventDefault()
+				a.window.Hide()
+			}
+		})
+		a.initTray()
 	})
 	if err := mygo.App.Run(); err != nil {
 		log.Fatal(fmt.Errorf("启动 BGGo: %w", err))

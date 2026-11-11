@@ -7,11 +7,16 @@ import (
 	"path/filepath"
 )
 
-const maxRecent = 20
+const (
+	maxRecent    = 20
+	maxFavorites = 50
+)
 
 type State struct {
 	Recent     []string `json:"recent"`
+	Favorites  []string `json:"favorites,omitempty"`
 	SyncVSCode bool     `json:"sync_vscode,omitempty"`
+	AutoBing   bool     `json:"auto_bing,omitempty"`
 }
 
 type Store struct {
@@ -24,6 +29,11 @@ func NewStore() (*Store, error) {
 		return nil, err
 	}
 	return &Store{path: filepath.Join(config, "bggo", "library.json")}, nil
+}
+
+// NewStoreWithPath 创建指向自定义路径的 Store（主要用于测试与隔离环境）
+func NewStoreWithPath(path string) *Store {
+	return &Store{path: path}
 }
 
 func (s *Store) Load() (State, error) {
@@ -59,6 +69,19 @@ func (s *Store) Add(path string) (State, error) {
 	return state, nil
 }
 
+// ClearRecent 清空最近使用壁纸列表
+func (s *Store) ClearRecent() (State, error) {
+	state, err := s.Load()
+	if err != nil {
+		return State{}, err
+	}
+	state.Recent = nil
+	if err := s.save(state); err != nil {
+		return State{}, err
+	}
+	return state, nil
+}
+
 func (s *Store) SetSyncVSCode(enabled bool) (State, error) {
 	state, err := s.Load()
 	if err != nil {
@@ -69,6 +92,47 @@ func (s *Store) SetSyncVSCode(enabled bool) (State, error) {
 		return State{}, err
 	}
 	return state, nil
+}
+
+func (s *Store) SetAutoBing(enabled bool) (State, error) {
+	state, err := s.Load()
+	if err != nil {
+		return State{}, err
+	}
+	state.AutoBing = enabled
+	if err := s.save(state); err != nil {
+		return State{}, err
+	}
+	return state, nil
+}
+
+func (s *Store) ToggleFavorite(path string) (State, bool, error) {
+	state, err := s.Load()
+	if err != nil {
+		return State{}, false, err
+	}
+	exists := false
+	var next []string
+	for _, item := range state.Favorites {
+		if item == path {
+			exists = true
+		} else {
+			next = append(next, item)
+		}
+	}
+	isFavorite := false
+	if !exists {
+		next = append([]string{path}, next...)
+		if len(next) > maxFavorites {
+			next = next[:maxFavorites]
+		}
+		isFavorite = true
+	}
+	state.Favorites = next
+	if err := s.save(state); err != nil {
+		return State{}, false, err
+	}
+	return state, isFavorite, nil
 }
 
 func (s *Store) save(state State) error {

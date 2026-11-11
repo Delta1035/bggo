@@ -47,3 +47,84 @@ func TestSetSyncVSCode(t *testing.T) {
 		t.Errorf("expected state.SyncVSCode=false")
 	}
 }
+
+func TestSetAutoBing(t *testing.T) {
+	s := &Store{path: filepath.Join(t.TempDir(), "library.json")}
+	state, err := s.SetAutoBing(true)
+	if err != nil {
+		t.Fatalf("SetAutoBing(true) error: %v", err)
+	}
+	if !state.AutoBing {
+		t.Errorf("expected state.AutoBing=true")
+	}
+
+	loaded, err := s.Load()
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+	if !loaded.AutoBing {
+		t.Errorf("expected loaded.AutoBing=true")
+	}
+
+	state, err = s.SetAutoBing(false)
+	if err != nil {
+		t.Fatalf("SetAutoBing(false) error: %v", err)
+	}
+	if state.AutoBing {
+		t.Errorf("expected state.AutoBing=false")
+	}
+}
+
+func TestToggleFavorite(t *testing.T) {
+	s := &Store{path: filepath.Join(t.TempDir(), "library.json")}
+
+	// 1. 首次添加收藏
+	state, isFav, err := s.ToggleFavorite("fav1.jpg")
+	if err != nil {
+		t.Fatalf("ToggleFavorite error: %v", err)
+	}
+	if !isFav {
+		t.Errorf("expected isFav=true on first add")
+	}
+	if len(state.Favorites) != 1 || state.Favorites[0] != "fav1.jpg" {
+		t.Errorf("unexpected favorites: %#v", state.Favorites)
+	}
+
+	// 2. 再次切换同一路径：取消收藏
+	state, isFav, err = s.ToggleFavorite("fav1.jpg")
+	if err != nil {
+		t.Fatalf("ToggleFavorite remove error: %v", err)
+	}
+	if isFav {
+		t.Errorf("expected isFav=false on removal")
+	}
+	if len(state.Favorites) != 0 {
+		t.Errorf("expected empty favorites, got %#v", state.Favorites)
+	}
+}
+
+func TestClearRecent(t *testing.T) {
+	s := &Store{path: filepath.Join(t.TempDir(), "library.json")}
+	if _, err := s.Add("wall1.png"); err != nil {
+		t.Fatalf("Add error: %v", err)
+	}
+	if _, err := s.Add("wall2.png"); err != nil {
+		t.Fatalf("Add error: %v", err)
+	}
+
+	state, err := s.ClearRecent()
+	if err != nil {
+		t.Fatalf("ClearRecent error: %v", err)
+	}
+	if len(state.Recent) != 0 {
+		t.Errorf("expected state.Recent to be empty, got %#v", state.Recent)
+	}
+
+	loaded, err := s.Load()
+	if err != nil {
+		t.Fatalf("Load error: %v", err)
+	}
+	if len(loaded.Recent) != 0 {
+		t.Errorf("expected loaded.Recent to be empty, got %#v", loaded.Recent)
+	}
+}
