@@ -2,7 +2,7 @@
   "name": "bggo-wallpaper",
   "displayName": "BGGo Wallpaper",
   "description": "为 VS Code 选择和管理本地壁纸",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "publisher": "bggo",
   "license": "MIT",
   "packageManager": "pnpm@11.5.2",
@@ -13,7 +13,9 @@
     "Other",
     "Themes"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./dist/extension.js",
   "extensionDependencies": [
     "be5invis.vscode-custom-css"
