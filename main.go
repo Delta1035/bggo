@@ -63,163 +63,223 @@ func newApplication() *application {
 
 func (a *application) view(c *ui.Context) {
 	t := c.Theme()
-	ui.Row(c).Fill().Background(t.Background).Children(func() {
-		// 左侧侧边栏 (Sidebar: 对齐设计图 260px，背景 t.Surface，内边距 20, 16)
-		ui.Column(c).Width(260).FillHeight().Padding(20, 16).Gap(18).Background(t.Surface).BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
-			// 1. 顶部应用品牌与版本号徽章 (Squircle 图标 + BGGo + Version Capsule)
-			ui.Row(c).AlignItems(ui.Center).FillWidth().Children(func() {
-				ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
-					ui.Box(c).Width(26).Height(26).Radius(6).Background(t.Accent).Center().Children(func() {
-						ui.Text(c, "🖼").FontSize(14).TextColor(t.AccentText)
-					})
-					ui.Text(c, "BGGo").FontSize(18).Bold().TextColor(t.Text)
-				})
-				ui.Spacer(c)
-				ui.Box(c).Padding(2, 7).Radius(10).Background(t.Border).Children(func() {
-					ui.Text(c, AppVersion).FontSize(11).Bold().TextColor(t.TextMuted)
-				})
-			})
 
-			// 2. 选择壁纸主操作按钮 (高 36，圆角 8)
-			if ui.PrimaryButton(c, "📁  选择本地图片").FillWidth().Height(36).Radius(8).Clicked() {
-				a.chooseWallpaper()
-			}
+	// 最外层窗口容器：在 Frameless 自绘模式下保持 1px 边框和微圆角
+	ui.Column(c).Fill().Background(t.Background).Border(1, t.Border).Children(func() {
+		// 1. 完全自绘的现代标题栏 (包含窗口拖拽、标题、版本号及最小化/最大化/关闭按钮)
+		a.drawTitleBar(c, t)
 
-			// 3. 最近使用列表 (卡片化 Item 风格)
-			ui.Column(c).Grow(1).Gap(6).FillWidth().Children(func() {
-				ui.Text(c, "最近使用").FontSize(11).Bold().TextColor(t.TextMuted)
-				ui.Scroll(c).Grow(1).Gap(4).Children(func() {
-					if len(a.recent) == 0 {
-						ui.Text(c, "还没有使用过壁纸").FontSize(12).TextColor(t.TextMuted).Margin(6, 0)
-					}
-					for _, path := range a.recent {
-						path := path
-						isSelected := a.selected == path
-						btn := ui.Button(c.Key(path), "🖼  "+filepath.Base(path)).FillWidth().Radius(6).Padding(6, 8).Tooltip(path)
-						if isSelected {
-							btn.Background(t.Accent).TextColor(t.AccentText)
-						} else {
-							btn.Background(t.Surface).TextColor(t.Text)
-						}
-						if btn.Clicked() {
-							a.loadWallpaper(path)
-						}
-					}
-				})
-			})
-
-			// 4. 侧边栏底部：检查更新与版本标识 (对齐设计图 Footer)
-			ui.Column(c).Gap(10).FillWidth().Children(func() {
-				if ui.Button(c, "↻  检查更新").FillWidth().Height(32).Radius(6).Clicked() {
-					a.checkForUpdates()
+		// 2. 窗口主体内容区 (侧边栏 + 主内容区)
+		ui.Row(c).Grow(1).FillWidth().Children(func() {
+			// 左侧侧边栏 (Sidebar: 对齐设计图 260px，背景 t.Surface，内边距 16, 16)
+			ui.Column(c).Width(260).FillHeight().Padding(16, 16).Gap(16).Background(t.Surface).BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
+				// 1. 选择壁纸主操作按钮 (高 36，圆角 8)
+				if ui.PrimaryButton(c, "📁  选择本地图片").FillWidth().Height(36).Radius(8).Clicked() {
+					a.chooseWallpaper()
 				}
-				ui.Row(c).Justify(ui.Center).FillWidth().Children(func() {
-					ui.Text(c, "BGGo 桌面版 · "+AppVersion).FontSize(11).TextColor(t.TextMuted)
+
+				// 2. 最近使用列表 (卡片化 Item 风格)
+				ui.Column(c).Grow(1).Gap(6).FillWidth().Children(func() {
+					ui.Text(c, "最近使用").FontSize(11).Bold().TextColor(t.TextMuted)
+					ui.Scroll(c).Grow(1).Gap(4).Children(func() {
+						if len(a.recent) == 0 {
+							ui.Text(c, "还没有使用过壁纸").FontSize(12).TextColor(t.TextMuted).Margin(6, 0)
+						}
+						for _, path := range a.recent {
+							path := path
+							isSelected := a.selected == path
+							btn := ui.Button(c.Key(path), "🖼  "+filepath.Base(path)).FillWidth().Radius(6).Padding(6, 8).Tooltip(path)
+							if isSelected {
+								btn.Background(t.Accent).TextColor(t.AccentText)
+							} else {
+								btn.Background(t.Surface).TextColor(t.Text)
+							}
+							if btn.Clicked() {
+								a.loadWallpaper(path)
+							}
+						}
+					})
+				})
+
+				// 3. 侧边栏底部：检查更新与版本标识 (对齐设计图 Footer)
+				ui.Column(c).Gap(10).FillWidth().Children(func() {
+					if ui.Button(c, "↻  检查更新").FillWidth().Height(32).Radius(6).Clicked() {
+						a.checkForUpdates()
+					}
+					ui.Row(c).Justify(ui.Center).FillWidth().Children(func() {
+						ui.Text(c, "BGGo 桌面版 · "+AppVersion).FontSize(11).TextColor(t.TextMuted)
+					})
+				})
+			})
+
+			// 右侧主展示区 (Main Area: 内边距 18, 24, 20, 24，Gap 16)
+			ui.Column(c).Grow(1).FillHeight().Padding(18, 24, 20, 24).Gap(16).Children(func() {
+				// 1. 顶部栏：标题、路径与 Segmented Control 胶囊分段选择器
+				ui.Row(c).AlignItems(ui.Center).FillWidth().Children(func() {
+					ui.Column(c).Gap(2).Grow(1).Children(func() {
+						ui.Text(c, "桌面壁纸").FontSize(22).Bold().TextColor(t.Text)
+						ui.Text(c, selectedLabel(a.selected)).FontSize(12).TextColor(t.TextMuted).MaxWidth(480).SingleLine()
+					})
+					ui.Spacer(c)
+
+					// 原生胶囊分段选择器 [ 覆盖 | 适应 | 拉伸 ]
+					ui.Box(c).Radius(8).Padding(3).Background(t.Border).Children(func() {
+						ui.Row(c).Gap(2).Children(func() {
+							options := []string{"覆盖", "适应", "拉伸"}
+							for _, opt := range options {
+								opt := opt
+								isSelected := a.fit == opt
+								btn := ui.Button(c.Key("seg-"+opt), opt).Padding(4, 12).Radius(6)
+								if isSelected {
+									btn.Background(t.Surface).TextColor(t.Text).Bold()
+								} else {
+									btn.Background(t.Border).TextColor(t.TextMuted)
+								}
+								if btn.Clicked() {
+									a.fit = opt
+								}
+							}
+						})
+					})
+				})
+
+				// 2. 中央大图预览卡片 (带悬浮 Badge 与分辨率 Info Pill)
+				ui.Box(c).Grow(1).FillWidth().MinHeight(260).Radius(14).Clip().Background(t.Surface).Border(1, t.Border).Children(func() {
+					if a.preview == nil {
+						ui.Column(c).Fill().Center().Gap(8).Children(func() {
+							ui.Text(c, "还没有选择壁纸").FontSize(18).Bold().TextColor(t.TextMuted)
+							ui.Text(c, "支持 JPG、PNG、WebP 和 BMP").FontSize(12).TextColor(t.TextMuted)
+						})
+						return
+					}
+
+					// 图片展示与顶部浮动信息层
+					ui.Image(c, a.preview).Fill().Fit(previewFit(a.fit)).Label("所选壁纸预览")
+
+					w, h := a.preview.Size()
+					resolutionText := fmt.Sprintf("%d × %d", w, h)
+
+					ui.Row(c).Padding(12, 14).FillWidth().Children(func() {
+						// 左上角悬浮胶囊：当前壁纸
+						ui.Box(c).Padding(3, 9).Radius(12).Background(t.Surface).Border(1, t.Border).Children(func() {
+							ui.Row(c).AlignItems(ui.Center).Gap(5).Children(func() {
+								ui.Box(c).Width(6).Height(6).Radius(3).Background(t.Success)
+								ui.Text(c, "当前壁纸").FontSize(11).Bold().TextColor(t.Text)
+							})
+						})
+						ui.Spacer(c)
+						// 右上角悬浮胶囊：分辨率尺寸
+						ui.Box(c).Padding(3, 9).Radius(12).Background(t.Surface).Border(1, t.Border).Children(func() {
+							ui.Text(c, resolutionText).FontSize(11).TextColor(t.TextMuted)
+						})
+					})
+				})
+
+				// 3. 底部操作栏 (状态指示灯、VS Code 开关、操作按钮组)
+				ui.Row(c).AlignItems(ui.Center).Gap(12).FillWidth().Children(func() {
+					// 状态指示灯 (Status Dot: 绿色就绪/蓝色忙碌/红色错误)
+					dotColor := t.Success
+					if a.error {
+						dotColor = t.Danger
+					} else if a.busy {
+						dotColor = t.Accent
+					}
+					ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() {
+						ui.Box(c).Width(8).Height(8).Radius(4).Background(dotColor)
+						ui.Text(c, a.status).FontSize(12).TextColor(t.TextMuted).SingleLine()
+					})
+
+					ui.Spacer(c)
+
+					// 现代原生 Switch 开关
+					ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() {
+						if ui.Switch(c, &a.syncVSCode).Changed() {
+							a.toggleSyncVSCode()
+						}
+						ui.Text(c, "同步到 VS Code").FontSize(12).TextColor(t.Text)
+					})
+
+					if ui.Button(c, "在文件夹中显示").Height(36).Radius(8).Disabled(a.selected == "").Clicked() {
+						mygo.Shell.ShowItemInFolder(a.selected)
+					}
+					if ui.Button(c, "映射到 VS Code").Height(36).Radius(8).Disabled(a.selected == "" || a.busy).Clicked() {
+						a.applyVSCode()
+					}
+					label := "应用到桌面"
+					if a.busy {
+						label = "正在应用…"
+					}
+					if ui.PrimaryButton(c, label).Height(36).Radius(8).Disabled(a.selected == "" || a.busy).Clicked() {
+						a.applyWallpaper()
+					}
 				})
 			})
 		})
+	})
+}
 
-		// 右侧主展示区 (Main Area: 内边距 18, 24, 20, 24，Gap 16)
-		ui.Column(c).Grow(1).FillHeight().Padding(18, 24, 20, 24).Gap(16).Children(func() {
-			// 1. 顶部栏：标题、路径与 Segmented Control 胶囊分段选择器
-			ui.Row(c).AlignItems(ui.Center).FillWidth().Children(func() {
-				ui.Column(c).Gap(2).Grow(1).Children(func() {
-					ui.Text(c, "桌面壁纸").FontSize(22).Bold().TextColor(t.Text)
-					ui.Text(c, selectedLabel(a.selected)).FontSize(12).TextColor(t.TextMuted).MaxWidth(480).SingleLine()
-				})
-				ui.Spacer(c)
-
-				// 原生胶囊分段选择器 [ 覆盖 | 适应 | 拉伸 ]
-				ui.Box(c).Radius(8).Padding(3).Background(t.Border).Children(func() {
-					ui.Row(c).Gap(2).Children(func() {
-						options := []string{"覆盖", "适应", "拉伸"}
-						for _, opt := range options {
-							opt := opt
-							isSelected := a.fit == opt
-							btn := ui.Button(c.Key("seg-"+opt), opt).Padding(4, 12).Radius(6)
-							if isSelected {
-								btn.Background(t.Surface).TextColor(t.Text).Bold()
-							} else {
-								btn.Background(t.Border).TextColor(t.TextMuted)
-							}
-							if btn.Clicked() {
-								a.fit = opt
-							}
-						}
-					})
-				})
+// drawTitleBar 绘制完全自绘的现代化标题栏
+func (a *application) drawTitleBar(c *ui.Context, t *ui.Theme) {
+	// 标题栏：高 38px，包含拖拽区域，双击触发最大化/还原
+	ui.Row(c).Height(38).FillWidth().Background(t.Surface).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).AlignItems(ui.Center).DragWindow().Children(func() {
+		// 左侧应用品牌徽标 (图标 + 标题 + 版本胶囊)
+		ui.Row(c).AlignItems(ui.Center).Gap(8).Padding(0, 14).Children(func() {
+			ui.Box(c).Width(22).Height(22).Radius(6).Background(t.Accent).Center().Children(func() {
+				ui.Text(c, "🖼").FontSize(12).TextColor(t.AccentText)
 			})
-
-			// 2. 中央大图预览卡片 (带悬浮 Badge 与分辨率 Info Pill)
-			ui.Box(c).Grow(1).FillWidth().MinHeight(260).Radius(14).Clip().Background(t.Surface).Border(1, t.Border).Children(func() {
-				if a.preview == nil {
-					ui.Column(c).Fill().Center().Gap(8).Children(func() {
-						ui.Text(c, "还没有选择壁纸").FontSize(18).Bold().TextColor(t.TextMuted)
-						ui.Text(c, "支持 JPG、PNG、WebP 和 BMP").FontSize(12).TextColor(t.TextMuted)
-					})
-					return
-				}
-
-				// 图片展示与顶部浮动信息层
-				ui.Image(c, a.preview).Fill().Fit(previewFit(a.fit)).Label("所选壁纸预览")
-
-				w, h := a.preview.Size()
-				resolutionText := fmt.Sprintf("%d × %d", w, h)
-
-				ui.Row(c).Padding(12, 14).FillWidth().Children(func() {
-					// 左上角悬浮胶囊：当前壁纸
-					ui.Box(c).Padding(3, 9).Radius(12).Background(t.Surface).Border(1, t.Border).Children(func() {
-						ui.Row(c).AlignItems(ui.Center).Gap(5).Children(func() {
-							ui.Box(c).Width(6).Height(6).Radius(3).Background(t.Success)
-							ui.Text(c, "当前壁纸").FontSize(11).Bold().TextColor(t.Text)
-						})
-					})
-					ui.Spacer(c)
-					// 右上角悬浮胶囊：分辨率尺寸
-					ui.Box(c).Padding(3, 9).Radius(12).Background(t.Surface).Border(1, t.Border).Children(func() {
-						ui.Text(c, resolutionText).FontSize(11).TextColor(t.TextMuted)
-					})
-				})
+			ui.Text(c, "BGGo 壁纸").FontSize(13).Bold().TextColor(t.Text)
+			ui.Box(c).Padding(2, 7).Radius(10).Background(t.Border).Children(func() {
+				ui.Text(c, AppVersion).FontSize(10).Bold().TextColor(t.TextMuted)
 			})
+		})
 
-			// 3. 底部操作栏 (状态指示灯、VS Code 开关、操作按钮组)
-			ui.Row(c).AlignItems(ui.Center).Gap(12).FillWidth().Children(func() {
-				// 状态指示灯 (Status Dot: 绿色就绪/蓝色忙碌/红色错误)
-				dotColor := t.Success
-				if a.error {
-					dotColor = t.Danger
-				} else if a.busy {
-					dotColor = t.Accent
-				}
-				ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() {
-					ui.Box(c).Width(8).Height(8).Radius(4).Background(dotColor)
-					ui.Text(c, a.status).FontSize(12).TextColor(t.TextMuted).SingleLine()
-				})
+		// 中间全宽留白拖拽区
+		ui.Spacer(c)
 
-				ui.Spacer(c)
-
-				// 现代原生 Switch 开关
-				ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() {
-					if ui.Switch(c, &a.syncVSCode).Changed() {
-						a.toggleSyncVSCode()
-					}
-					ui.Text(c, "同步到 VS Code").FontSize(12).TextColor(t.Text)
-				})
-
-				if ui.Button(c, "在文件夹中显示").Height(36).Radius(8).Disabled(a.selected == "").Clicked() {
-					mygo.Shell.ShowItemInFolder(a.selected)
-				}
-				if ui.Button(c, "映射到 VS Code").Height(36).Radius(8).Disabled(a.selected == "" || a.busy).Clicked() {
-					a.applyVSCode()
-				}
-				label := "应用到桌面"
-				if a.busy {
-					label = "正在应用…"
-				}
-				if ui.PrimaryButton(c, label).Height(36).Radius(8).Disabled(a.selected == "" || a.busy).Clicked() {
-					a.applyWallpaper()
-				}
+		// 右侧自绘窗口控制按钮群 (最小化、最大化/还原、关闭)
+		ui.Row(c).Height(38).AlignItems(ui.Center).Children(func() {
+			// 1. 最小化按钮
+			minBtn := ui.ButtonBase(c.Key("win-min")).Width(44).Height(38)
+			if minBtn.Hovered() {
+				minBtn.Background(t.Border)
+			}
+			minBtn.Children(func() {
+				ui.Text(c, "—").FontSize(11).TextColor(t.Text)
 			})
+			if minBtn.Clicked() && a.window != nil {
+				a.window.Minimize()
+			}
+
+			// 2. 最大化 / 还原按钮
+			isMax := a.window != nil && a.window.IsMaximized()
+			maxIcon := "□"
+			if isMax {
+				maxIcon = "❐"
+			}
+			maxBtn := ui.ButtonBase(c.Key("win-max")).Width(44).Height(38)
+			if maxBtn.Hovered() {
+				maxBtn.Background(t.Border)
+			}
+			maxBtn.Children(func() {
+				ui.Text(c, maxIcon).FontSize(12).TextColor(t.Text)
+			})
+			if maxBtn.Clicked() && a.window != nil {
+				a.window.ToggleMaximize()
+			}
+
+			// 3. 关闭按钮 (悬停高亮红底白字)
+			closeBtn := ui.ButtonBase(c.Key("win-close")).Width(48).Height(38)
+			closeTextColor := t.Text
+			if closeBtn.Hovered() {
+				closeBtn.Background(ui.Hex("#E81123"))
+				closeTextColor = ui.Hex("#FFFFFF")
+			}
+			closeBtn.Children(func() {
+				ui.Text(c, "✕").FontSize(12).TextColor(closeTextColor)
+			})
+			if closeBtn.Clicked() && a.window != nil {
+				a.window.Close()
+			}
 		})
 	})
 }
@@ -413,6 +473,7 @@ func main() {
 			Height:    690,
 			MinWidth:  760,
 			MinHeight: 520,
+			Frameless: true,
 			StateKey:  "main",
 			Content:   ui.View(a.view),
 		})
