@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"bggo/internal/library"
 	"bggo/internal/vscode"
@@ -15,7 +16,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-const AppVersion = "v0.2.1"
+const AppVersion = "v0.2.2"
 
 type application struct {
 	window      *mygo.Window
@@ -62,44 +63,53 @@ func newApplication() *application {
 func (a *application) view(c *ui.Context) {
 	t := c.Theme()
 	ui.Row(c).Fill().Background(t.Background).Children(func() {
-		// 左侧侧边栏 (Sidebar)
-		ui.Column(c).Width(250).FillHeight().Padding(20, 16).Gap(16).Background(t.Surface).BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
-			// 1. 顶部应用品牌与版本号徽章 (符合 Windows & Linux 规范的标准桌面设计，无假路灯)
+		// 左侧侧边栏 (Sidebar: 对齐设计图 260px，背景 t.Surface，内边距 20, 16)
+		ui.Column(c).Width(260).FillHeight().Padding(20, 16).Gap(18).Background(t.Surface).BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
+			// 1. 顶部应用品牌与版本号徽章 (Squircle 图标 + BGGo + Version Capsule)
 			ui.Row(c).AlignItems(ui.Center).FillWidth().Children(func() {
-				ui.Text(c, "BGGo").FontSize(22).Bold().TextColor(t.Text)
+				ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
+					ui.Box(c).Width(26).Height(26).Radius(6).Background(t.Accent).Center().Children(func() {
+						ui.Text(c, "🖼").FontSize(14).TextColor(t.AccentText)
+					})
+					ui.Text(c, "BGGo").FontSize(18).Bold().TextColor(t.Text)
+				})
 				ui.Spacer(c)
-				ui.Box(c).Padding(2, 7).Radius(6).Background(t.Border).Children(func() {
+				ui.Box(c).Padding(2, 7).Radius(10).Background(t.Border).Children(func() {
 					ui.Text(c, AppVersion).FontSize(11).Bold().TextColor(t.TextMuted)
 				})
 			})
 
-			// 2. 选择壁纸主操作按钮
-			if ui.PrimaryButton(c, "选择图片").FillWidth().Clicked() {
+			// 2. 选择壁纸主操作按钮 (高 36，圆角 8)
+			if ui.PrimaryButton(c, "📁  选择本地图片").FillWidth().Height(36).Radius(8).Clicked() {
 				a.chooseWallpaper()
 			}
 
-			// 3. 最近使用
-			ui.Text(c, "最近使用").FontSize(11).Bold().TextColor(t.TextMuted)
-			ui.Scroll(c).Grow(1).Gap(4).Children(func() {
-				if len(a.recent) == 0 {
-					ui.Text(c, "还没有使用过壁纸").FontSize(12).TextColor(t.TextMuted).Margin(6, 0)
-				}
-				for _, path := range a.recent {
-					path := path
-					isSelected := a.selected == path
-					btn := ui.Button(c.Key(path), filepath.Base(path)).FillWidth().Tooltip(path)
-					if isSelected {
-						btn.Background(t.Accent).TextColor(t.AccentText)
+			// 3. 最近使用列表 (卡片化 Item 风格)
+			ui.Column(c).Grow(1).Gap(6).FillWidth().Children(func() {
+				ui.Text(c, "最近使用").FontSize(11).Bold().TextColor(t.TextMuted)
+				ui.Scroll(c).Grow(1).Gap(4).Children(func() {
+					if len(a.recent) == 0 {
+						ui.Text(c, "还没有使用过壁纸").FontSize(12).TextColor(t.TextMuted).Margin(6, 0)
 					}
-					if btn.Clicked() {
-						a.loadWallpaper(path)
+					for _, path := range a.recent {
+						path := path
+						isSelected := a.selected == path
+						btn := ui.Button(c.Key(path), "🖼  "+filepath.Base(path)).FillWidth().Radius(6).Padding(6, 8).Tooltip(path)
+						if isSelected {
+							btn.Background(t.Accent).TextColor(t.AccentText)
+						} else {
+							btn.Background(t.Surface).TextColor(t.Text)
+						}
+						if btn.Clicked() {
+							a.loadWallpaper(path)
+						}
 					}
-				}
+				})
 			})
 
-			// 4. 侧边栏底部：检查更新与版本提示 (彻底去掉多余的 Linux/Windows 适配文本)
-			ui.Column(c).Gap(8).FillWidth().Children(func() {
-				if ui.Button(c, "检查更新").FillWidth().Clicked() {
+			// 4. 侧边栏底部：检查更新与版本标识 (对齐设计图 Footer)
+			ui.Column(c).Gap(10).FillWidth().Children(func() {
+				if ui.Button(c, "↻  检查更新").FillWidth().Height(32).Radius(6).Clicked() {
 					a.checkForUpdates()
 				}
 				ui.Row(c).Justify(ui.Center).FillWidth().Children(func() {
@@ -108,20 +118,38 @@ func (a *application) view(c *ui.Context) {
 			})
 		})
 
-		// 右侧主展示区
-		ui.Column(c).Grow(1).FillHeight().Padding(24, 28).Gap(16).Children(func() {
-			// 1. 顶部标题与预览模式
+		// 右侧主展示区 (Main Area: 内边距 18, 24, 20, 24，Gap 16)
+		ui.Column(c).Grow(1).FillHeight().Padding(18, 24, 20, 24).Gap(16).Children(func() {
+			// 1. 顶部栏：标题、路径与 Segmented Control 胶囊分段选择器
 			ui.Row(c).AlignItems(ui.Center).FillWidth().Children(func() {
 				ui.Column(c).Gap(2).Grow(1).Children(func() {
 					ui.Text(c, "桌面壁纸").FontSize(22).Bold().TextColor(t.Text)
-					ui.Text(c, selectedLabel(a.selected)).FontSize(12).TextColor(t.TextMuted).MaxWidth(520).SingleLine()
+					ui.Text(c, selectedLabel(a.selected)).FontSize(12).TextColor(t.TextMuted).MaxWidth(480).SingleLine()
 				})
 				ui.Spacer(c)
-				ui.Text(c, "预览方式").FontSize(12).TextColor(t.TextMuted).Margin(0, 8, 0, 0)
-				ui.Select(c, &a.fit, []string{"覆盖", "适应", "拉伸"}).Label("预览方式").Width(110)
+
+				// 原生胶囊分段选择器 [ 覆盖 | 适应 | 拉伸 ]
+				ui.Box(c).Radius(8).Padding(3).Background(t.Border).Children(func() {
+					ui.Row(c).Gap(2).Children(func() {
+						options := []string{"覆盖", "适应", "拉伸"}
+						for _, opt := range options {
+							opt := opt
+							isSelected := a.fit == opt
+							btn := ui.Button(c.Key("seg-"+opt), opt).Padding(4, 12).Radius(6)
+							if isSelected {
+								btn.Background(t.Surface).TextColor(t.Text).Bold()
+							} else {
+								btn.Background(t.Border).TextColor(t.TextMuted)
+							}
+							if btn.Clicked() {
+								a.fit = opt
+							}
+						}
+					})
+				})
 			})
 
-			// 2. 中央大图预览卡片
+			// 2. 中央大图预览卡片 (带悬浮 Badge 与分辨率 Info Pill)
 			ui.Box(c).Grow(1).FillWidth().MinHeight(260).Radius(14).Clip().Background(t.Surface).Border(1, t.Border).Children(func() {
 				if a.preview == nil {
 					ui.Column(c).Fill().Center().Gap(8).Children(func() {
@@ -130,16 +158,44 @@ func (a *application) view(c *ui.Context) {
 					})
 					return
 				}
+
+				// 图片展示与顶部浮动信息层
 				ui.Image(c, a.preview).Fill().Fit(previewFit(a.fit)).Label("所选壁纸预览")
+
+				w, h := a.preview.Size()
+				resolutionText := fmt.Sprintf("%d × %d", w, h)
+
+				ui.Row(c).Padding(12, 14).FillWidth().Children(func() {
+					// 左上角悬浮胶囊：当前壁纸
+					ui.Box(c).Padding(3, 9).Radius(12).Background(t.Surface).Border(1, t.Border).Children(func() {
+						ui.Row(c).AlignItems(ui.Center).Gap(5).Children(func() {
+							ui.Box(c).Width(6).Height(6).Radius(3).Background(t.Success)
+							ui.Text(c, "当前壁纸").FontSize(11).Bold().TextColor(t.Text)
+						})
+					})
+					ui.Spacer(c)
+					// 右上角悬浮胶囊：分辨率尺寸
+					ui.Box(c).Padding(3, 9).Radius(12).Background(t.Surface).Border(1, t.Border).Children(func() {
+						ui.Text(c, resolutionText).FontSize(11).TextColor(t.TextMuted)
+					})
+				})
 			})
 
-			// 3. 底部操作栏
-			ui.Row(c).AlignItems(ui.Center).Gap(10).FillWidth().Children(func() {
-				statusColor := t.TextMuted
+			// 3. 底部操作栏 (状态指示灯、VS Code 开关、操作按钮组)
+			ui.Row(c).AlignItems(ui.Center).Gap(12).FillWidth().Children(func() {
+				// 状态指示灯 (Status Dot: 绿色就绪/蓝色忙碌/红色错误)
+				dotColor := t.Success
 				if a.error {
-					statusColor = t.Danger
+					dotColor = t.Danger
+				} else if a.busy {
+					dotColor = t.Accent
 				}
-				ui.Text(c, a.status).Grow(1).FontSize(12).TextColor(statusColor).SingleLine()
+				ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() {
+					ui.Box(c).Width(8).Height(8).Radius(4).Background(dotColor)
+					ui.Text(c, a.status).FontSize(12).TextColor(t.TextMuted).SingleLine()
+				})
+
+				ui.Spacer(c)
 
 				// 现代原生 Switch 开关
 				ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() {
@@ -149,17 +205,17 @@ func (a *application) view(c *ui.Context) {
 					ui.Text(c, "同步到 VS Code").FontSize(12).TextColor(t.Text)
 				})
 
-				if ui.Button(c, "在文件夹中显示").Disabled(a.selected == "").Clicked() {
+				if ui.Button(c, "在文件夹中显示").Height(36).Radius(8).Disabled(a.selected == "").Clicked() {
 					mygo.Shell.ShowItemInFolder(a.selected)
 				}
-				if ui.Button(c, "映射到 VS Code").Disabled(a.selected == "" || a.busy).Clicked() {
+				if ui.Button(c, "映射到 VS Code").Height(36).Radius(8).Disabled(a.selected == "" || a.busy).Clicked() {
 					a.applyVSCode()
 				}
 				label := "应用到桌面"
 				if a.busy {
 					label = "正在应用…"
 				}
-				if ui.PrimaryButton(c, label).Disabled(a.selected == "" || a.busy).Clicked() {
+				if ui.PrimaryButton(c, label).Height(36).Radius(8).Disabled(a.selected == "" || a.busy).Clicked() {
 					a.applyWallpaper()
 				}
 			})
@@ -312,25 +368,31 @@ func main() {
 	mygo.Use(native.Plugin)
 	a := newApplication()
 	mygo.App.WhenReady(func() {
-		mygo.App.SetMenu(mygo.NewMenu([]*mygo.MenuItem{
-			{Label: "BGGo", Submenu: []*mygo.MenuItem{
-				{Role: mygo.RoleAbout},
-				updater.MenuItem(),
-				mygo.Separator(),
-				{Role: mygo.RoleQuit},
-			}},
-			{Role: mygo.RoleEditMenu},
-			{Role: mygo.RoleWindowMenu},
-		}))
+		if runtime.GOOS == "darwin" {
+			mygo.App.SetMenu(mygo.NewMenu([]*mygo.MenuItem{
+				{Label: "BGGo", Submenu: []*mygo.MenuItem{
+					{Role: mygo.RoleAbout},
+					updater.MenuItem(),
+					mygo.Separator(),
+					{Role: mygo.RoleQuit},
+				}},
+				{Role: mygo.RoleEditMenu},
+				{Role: mygo.RoleWindowMenu},
+			}))
+		} else {
+			mygo.App.SetMenu(nil)
+		}
+
 		a.window = mygo.NewWindow(mygo.WindowOptions{
 			Title:     "BGGo 壁纸",
-			Width:     1000,
-			Height:    680,
+			Width:     1020,
+			Height:    690,
 			MinWidth:  760,
 			MinHeight: 520,
 			StateKey:  "main",
 			Content:   ui.View(a.view),
 		})
+		a.window.SetMenu(nil)
 	})
 	if err := mygo.App.Run(); err != nil {
 		log.Fatal(fmt.Errorf("启动 BGGo: %w", err))
