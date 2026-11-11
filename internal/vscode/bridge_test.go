@@ -128,28 +128,16 @@ func TestApplyWallpaper(t *testing.T) {
 	}
 
 	imports, ok := settings[SettingCustomCSSImports].([]any)
-	if !ok || len(imports) != 2 {
-		t.Fatalf("expected 2 items in imports, got %v", settings[SettingCustomCSSImports])
+	if !ok || len(imports) != 1 {
+		t.Fatalf("expected 1 item in imports, got %v", settings[SettingCustomCSSImports])
 	}
 	if imports[0] != "file:///some/other/style.css" {
 		t.Errorf("imports[0] = %v, want file:///some/other/style.css", imports[0])
 	}
-	expectedScriptURI := FileURI(filepath.Join(userDir, "globalStorage", ManagedExtensionID, ManagedScriptFile))
-	if imports[1] != expectedScriptURI {
-		t.Errorf("imports[1] = %v, want %v", imports[1], expectedScriptURI)
-	}
 
-	// Verify bggo-wallpaper.js
-	scriptData, err := os.ReadFile(report.ScriptPath)
-	if err != nil {
-		t.Fatalf("failed to read script: %v", err)
-	}
-	scriptStr := string(scriptData)
-	if !strings.Contains(scriptStr, "bggo-wallpaper-layer") {
-		t.Errorf("script missing bggo-wallpaper-layer: %s", scriptStr)
-	}
-	if !strings.Contains(scriptStr, WorkbenchImageURI(dummyImg)) {
-		t.Errorf("script missing image URI: %s", scriptStr)
+	// Verify bggo-wallpaper.js is NOT generated or retained
+	if _, err := os.Stat(report.ScriptPath); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("expected bggo-wallpaper.js to not exist, got err: %v", err)
 	}
 
 	// Verify bggo-wallpaper.css
@@ -166,6 +154,45 @@ func TestApplyWallpaper(t *testing.T) {
 	}
 	if !strings.Contains(styleStr, "opacity: 0.16") {
 		t.Errorf("stylesheet missing opacity: %s", styleStr)
+	}
+}
+
+func TestApplyWallpaper_DeletesEmptyCustomCSSImports(t *testing.T) {
+	tmpDir := t.TempDir()
+	userDir := filepath.Join(tmpDir, "User")
+	extDir := filepath.Join(tmpDir, "extensions")
+	_ = os.MkdirAll(userDir, 0o755)
+
+	initialSettings := `{
+		"vscode_custom_css.imports": [
+			"file:///old/path/bggo-wallpaper.js"
+		]
+	}`
+	_ = os.WriteFile(filepath.Join(userDir, "settings.json"), []byte(initialSettings), 0o644)
+
+	dummyImg := filepath.Join(tmpDir, "sample.png")
+	_ = os.WriteFile(dummyImg, []byte("fake-image"), 0o644)
+
+	svc := Service{
+		UserDir:      userDir,
+		ExtensionDir: extDir,
+	}
+
+	if _, err := svc.Apply(dummyImg); err != nil {
+		t.Fatalf("svc.Apply failed: %v", err)
+	}
+
+	settingsData, err := os.ReadFile(filepath.Join(userDir, "settings.json"))
+	if err != nil {
+		t.Fatalf("failed to read settings.json: %v", err)
+	}
+	var settings map[string]any
+	if err := json.Unmarshal(settingsData, &settings); err != nil {
+		t.Fatalf("invalid json: %v", err)
+	}
+
+	if _, exists := settings[SettingCustomCSSImports]; exists {
+		t.Errorf("expected SettingCustomCSSImports to be completely deleted when only BGGo entries existed, got %v", settings[SettingCustomCSSImports])
 	}
 }
 

@@ -94,10 +94,16 @@ func (s Service) Apply(wallpaperPath string) (*ApplyReport, error) {
 	// Update settings map
 	settings[SettingWallpaperPath] = abs
 
-	// Manage vscode_custom_css.imports
-	imports := extractImports(settings[SettingCustomCSSImports])
-	imports = updateImports(imports, scriptURI, legacyStyleURI)
-	settings[SettingCustomCSSImports] = imports
+	// Clean up legacy vscode_custom_css.imports to prevent conflicting background injections
+	if _, exists := settings[SettingCustomCSSImports]; exists {
+		imports := extractImports(settings[SettingCustomCSSImports])
+		cleanImports := removeBGGoImports(imports, scriptURI, legacyStyleURI)
+		if len(cleanImports) == 0 {
+			delete(settings, SettingCustomCSSImports)
+		} else {
+			settings[SettingCustomCSSImports] = cleanImports
+		}
+	}
 
 	// Retrieve styling preferences from existing configuration if present
 	opacity := extractFloat(settings[SettingOpacity], DefaultOpacity)
@@ -113,7 +119,7 @@ func (s Service) Apply(wallpaperPath string) (*ApplyReport, error) {
 		return nil, fmt.Errorf("写入 VS Code 配置: %w", err)
 	}
 
-	// Generate and write bggo-wallpaper.css
+	// Generate and write bggo-wallpaper.css (the only styling source used by BGGo)
 	imageURI := WorkbenchImageURI(abs)
 	stylePath := filepath.Join(storageDir, ManagedStyleFile)
 	styleContent := GenerateStylesheet(imageURI, opacity, blur, position)
@@ -121,11 +127,8 @@ func (s Service) Apply(wallpaperPath string) (*ApplyReport, error) {
 		return nil, fmt.Errorf("写入 VS Code 壁纸样式: %w", err)
 	}
 
-	// Generate and write bggo-wallpaper.js (for backward compatibility)
-	scriptContent := GenerateScript(imageURI, opacity, blur, position)
-	if err := atomicWriteFile(scriptPath, []byte(scriptContent), 0o644); err != nil {
-		return nil, fmt.Errorf("写入 VS Code 壁纸脚本: %w", err)
-	}
+	// Remove stale bggo-wallpaper.js so legacy injectors cannot load duplicate DOM backgrounds
+	_ = os.Remove(scriptPath)
 
 	installed := s.IsExtensionInstalled(userDir)
 
@@ -451,18 +454,19 @@ func extractImports(val any) []string {
 	return res
 }
 
-func updateImports(existing []string, scriptURI, legacyStyleURI string) []string {
+func removeBGGoImports(existing []string, scriptURI, legacyStyleURI string) []string {
 	var next []string
 	scriptURILower := strings.ToLower(scriptURI)
 	legacyStyleURILower := strings.ToLower(legacyStyleURI)
 
 	for _, item := range existing {
 		lower := strings.ToLower(item)
-		if lower != scriptURILower && lower != legacyStyleURILower && lower != strings.TrimPrefix(scriptURILower, "file://") {
+		if lower != scriptURILower && lower != legacyStyleURILower &&
+			lower != strings.TrimPrefix(scriptURILower, "file://") &&
+			!strings.Contains(lower, "bggo-wallpaper") {
 			next = append(next, item)
 		}
 	}
-	next = append(next, scriptURI)
 	return next
 }
 
