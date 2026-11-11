@@ -1,5 +1,10 @@
 import * as vscode from "vscode";
 import {
+  applyWorkbenchPatch,
+  removeWorkbenchPatch,
+  stylesheet,
+} from "./patcher";
+import {
   isWorkbenchPermissionError,
   prepareWorkbenchPermissions,
   repairWorkbenchPermissions,
@@ -14,7 +19,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("bggo.selectWallpaper", () => selectWallpaper(context)),
     vscode.commands.registerCommand("bggo.refreshWallpaper", () => refreshWallpaper(context, true)),
     vscode.commands.registerCommand("bggo.disableWallpaper", () => disableWallpaper(context)),
-    vscode.commands.registerCommand("bggo.repairPermissions", () => repairWorkbenchPermissions()),
+    vscode.commands.registerCommand("bggo.repairPermissions", () => repairWorkbenchPermissions(true)),
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration("bggo.wallpaper.path")) {
         void refreshWallpaper(context, true);
@@ -66,117 +71,101 @@ async function refreshWallpaper(context: vscode.ExtensionContext, notify: boolea
   const opacity = clamp(config.get<number>("opacity", 0.16), 0.03, 1);
   const blur = clamp(config.get<number>("blur", 0), 0, 30);
   const position = safePosition(config.get<string>("position", "center"));
+
   const styleUri = vscode.Uri.joinPath(context.globalStorageUri, managedStyleFile);
   const scriptUri = vscode.Uri.joinPath(context.globalStorageUri, managedScriptFile);
 
+  const css = stylesheet(imageUri, opacity, blur, position);
+
   await vscode.workspace.fs.createDirectory(context.globalStorageUri);
-  await vscode.workspace.fs.writeFile(
-    scriptUri,
-    Buffer.from(wallpaperScript(imageUri, opacity, blur, position), "utf8"),
-  );
-  await addManagedImport(scriptUri, styleUri);
-  await reloadCustomCSS(notify);
+  await vscode.workspace.fs.writeFile(styleUri, Buffer.from(css, "utf8"));
+
+  // 清理 settings.json 中遗留的 Custom CSS 导入项，避免第三方插件破坏 CSP
+  await removeLegacyImports(scriptUri, styleUri);
+
+  await reloadWallpaper(css, notify);
 }
 
 async function disableWallpaper(context: vscode.ExtensionContext): Promise<void> {
   const styleUri = vscode.Uri.joinPath(context.globalStorageUri, managedStyleFile);
   const scriptUri = vscode.Uri.joinPath(context.globalStorageUri, managedScriptFile);
-  const settings = vscode.workspace.getConfiguration();
-  const imports = globalImports(settings);
-  const managed = managedImportURIs(scriptUri, styleUri);
-  const next = imports.filter((item) => !managed.includes(item));
-  await settings.update(cssImportsKey, next, vscode.ConfigurationTarget.Global);
-  await reloadCustomCSS(true);
+
+  await removeLegacyImports(scriptUri, styleUri);
+
+  if (!(await prepareWorkbenchPermissions())) {
+    return;
+  }
+  try {
+    await removeWorkbenchPatch();
+  } catch (error) {
+    if (isWorkbenchPermissionError(error) && (await repairWorkbenchPermissions(true))) {
+      await removeWorkbenchPatch();
+    }
+  }
+
+  const action = await vscode.window.showInformationMessage(
+    "BGGo 壁纸已关闭，重新加载窗口后生效。",
+    "重新加载",
+  );
+  if (action === "重新加载") {
+    await vscode.commands.executeCommand("workbench.action.reloadWindow");
+  }
 }
 
-async function addManagedImport(scriptUri: vscode.Uri, legacyStyleUri: vscode.Uri): Promise<void> {
+async function removeLegacyImports(scriptUri: vscode.Uri, legacyStyleUri: vscode.Uri): Promise<void> {
   const settings = vscode.workspace.getConfiguration();
   const imports = globalImports(settings);
+  if (!imports || imports.length === 0) {
+    return;
+  }
   const managed = managedImportURIs(scriptUri, legacyStyleUri);
-  const fileImport = vscode.Uri.file(scriptUri.fsPath).toString();
-  const next = [...imports.filter((item) => !managed.includes(item)), fileImport];
-  if (next.length !== imports.length || next.some((item, index) => item !== imports[index])) {
+  const next = imports.filter((item) => !managed.includes(item));
+  if (next.length !== imports.length) {
     await settings.update(cssImportsKey, next, vscode.ConfigurationTarget.Global);
   }
 }
 
 function managedImportURIs(...uris: vscode.Uri[]): string[] {
-  // Custom CSS and JS Loader understands file: URLs, not VS Code's vscode-userdata: scheme.
   return uris.flatMap((uri) => [vscode.Uri.file(uri.fsPath).toString(), uri.toString()]);
 }
 
 function workbenchImageURI(path: string): string {
-  // VS Code's sandbox blocks file: images; vscode-file: is its allowed local-resource scheme.
   return vscode.Uri.file(path).toString().replace("file://", "vscode-file://vscode-app");
 }
 
-async function reloadCustomCSS(notify: boolean): Promise<void> {
+async function reloadWallpaper(css: string, notify: boolean): Promise<void> {
   if (!(await prepareWorkbenchPermissions())) {
     return;
   }
   try {
-    await vscode.commands.executeCommand("extension.updateCustomCSS");
+    await applyWorkbenchPatch(css);
   } catch (error) {
     if (!isWorkbenchPermissionError(error)) {
       const detail = error instanceof Error ? error.message : String(error);
-      void vscode.window.showErrorMessage(`Custom CSS and JS Loader 未能更新样式：${detail}`);
+      void vscode.window.showErrorMessage(`未能更新壁纸样式：${detail}`);
       return;
     }
     if (!(await repairWorkbenchPermissions(true))) {
       return;
     }
     try {
-      await vscode.commands.executeCommand("extension.updateCustomCSS");
+      await applyWorkbenchPatch(css);
     } catch (retryError) {
       const detail = retryError instanceof Error ? retryError.message : String(retryError);
       void vscode.window.showErrorMessage(`权限修复后仍无法更新壁纸样式：${detail}`);
       return;
     }
   }
+
   if (notify) {
     const action = await vscode.window.showInformationMessage(
-      "BGGo 壁纸样式已更新，重新加载窗口后生效。",
+      "BGGo 壁纸样式已更新（原生安全策略已完整保留），重新加载窗口后生效。",
       "重新加载",
     );
     if (action === "重新加载") {
       await vscode.commands.executeCommand("workbench.action.reloadWindow");
     }
   }
-}
-
-function wallpaperScript(
-  imageUri: string,
-  opacity: number,
-  blur: number,
-  position: string,
-): string {
-  const style = {
-    position: "fixed",
-    inset: `-${blur * 2}px`,
-    zIndex: "1001",
-    pointerEvents: "none",
-    backgroundImage: `url(${JSON.stringify(imageUri)})`,
-    backgroundPosition: position,
-    backgroundRepeat: "no-repeat",
-    backgroundSize: "cover",
-    opacity: String(opacity),
-    filter: `blur(${blur}px)`,
-  };
-  return `/* Generated by BGGo Wallpaper. */
-(() => {
-  const render = () => {
-    const id = "bggo-wallpaper-layer";
-    const layer = document.getElementById(id) || document.body.appendChild(document.createElement("div"));
-    layer.id = id;
-    Object.assign(layer.style, ${JSON.stringify(style)});
-  };
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", render, { once: true });
-  } else {
-    render();
-  }
-})();
-`;
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -193,4 +182,3 @@ function globalImports(settings: vscode.WorkspaceConfiguration): string[] {
 }
 
 export function deactivate(): void {}
-

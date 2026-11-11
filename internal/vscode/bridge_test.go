@@ -147,6 +147,44 @@ func TestApplyWallpaper(t *testing.T) {
 	if !strings.Contains(scriptStr, WorkbenchImageURI(dummyImg)) {
 		t.Errorf("script missing image URI: %s", scriptStr)
 	}
+
+	// Verify bggo-wallpaper.css
+	styleData, err := os.ReadFile(report.StylePath)
+	if err != nil {
+		t.Fatalf("failed to read stylesheet: %v", err)
+	}
+	styleStr := string(styleData)
+	if !strings.Contains(styleStr, "body::after") {
+		t.Errorf("stylesheet missing body::after: %s", styleStr)
+	}
+	if !strings.Contains(styleStr, WorkbenchImageURI(dummyImg)) {
+		t.Errorf("stylesheet missing image URI: %s", styleStr)
+	}
+	if !strings.Contains(styleStr, "opacity: 0.16") {
+		t.Errorf("stylesheet missing opacity: %s", styleStr)
+	}
+}
+
+func TestGenerateStylesheet(t *testing.T) {
+	css := GenerateStylesheet("vscode-file://vscode-app/home/user/bg.png", 0.25, 4, "top")
+	if !strings.Contains(css, "body::after") {
+		t.Errorf("expected body::after in CSS, got: %s", css)
+	}
+	if !strings.Contains(css, "inset: -8px") {
+		t.Errorf("expected inset: -8px for blur=4, got: %s", css)
+	}
+	if !strings.Contains(css, "opacity: 0.25") {
+		t.Errorf("expected opacity: 0.25, got: %s", css)
+	}
+	if !strings.Contains(css, "background-position: top") {
+		t.Errorf("expected background-position: top, got: %s", css)
+	}
+	if !strings.Contains(css, "filter: blur(4px)") {
+		t.Errorf("expected filter: blur(4px), got: %s", css)
+	}
+	if strings.Contains(css, "<script>") {
+		t.Errorf("stylesheet must not contain script tags: %s", css)
+	}
 }
 
 func TestApplyRejectsInvalidFile(t *testing.T) {

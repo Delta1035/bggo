@@ -1,12 +1,12 @@
 # BGGo Wallpaper for VS Code
 
-这个扩展为 VS Code 选择和管理本地壁纸。它会生成一份受 BGGo 管理的工作台脚本，并通过依赖扩展 **Custom CSS and JS Loader** 加载。BGGo 不直接改写 VS Code 安装文件，但依赖扩展需要修改工作台文件才能完成注入。
+这个扩展为 VS Code 选择和管理本地壁纸。它采用原生纯 CSS（`body::after`）安全注入工作台，**严格保留官方默认的 Content-Security-Policy (CSP) 安全策略**，不再依赖第三方 Custom CSS Loader，与 Codex、Copilot 等所有 Webview 扩展 100% 兼容。
 
 ## 本地开发
 
 ```bash
 pnpm install
-pnpm run check
+pnpm test
 pnpm run package
 ```
 
@@ -20,7 +20,6 @@ pnpm run package
 
 Linux 上 BGGo 通过 `pkexec` 和 `setfacl` 只为当前用户开放 VS Code 的工作台目录和入口文件。授权失败时可运行 `BGGo: 修复 VS Code 壁纸权限`，或使用自动复制的手动命令。VS Code 升级重建工作台目录后可能需要重新授权。
 
-> Custom CSS and JS Loader 的工作方式会让 VS Code 显示“安装似乎损坏”的提示，这是加载工作台 CSS 的已知副作用。关闭壁纸后可重新安装 VS Code 恢复官方文件。
+> 修改工作台文件会让 VS Code 显示“安装似乎损坏”的校验提示，这是本地注入样式的已知副作用。点击提示框齿轮选择“不再显示”即可。
 
 源码仓库中的 `docs/user-guide.md` 提供完整的使用、关闭和故障排查说明，`docs/architecture.md` 介绍架构与权限边界。
-

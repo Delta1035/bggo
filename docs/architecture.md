@@ -50,17 +50,16 @@ bggo/
 
 ## VS Code 扩展
 
-扩展是独立的 TypeScript 包，不嵌入桌面应用。它将生成的 JavaScript 写入扩展全局存储目录，并把对应 `file:` URI 加入 `vscode_custom_css.imports`。依赖扩展负责把脚本注入 VS Code 工作台。
+扩展是独立的 TypeScript 包，不嵌入桌面应用。它将生成的纯 CSS 写入扩展全局存储目录，并通过自身安全注入引擎直接挂载到 VS Code 工作台（`workbench.html`）。
 
-脚本创建 `#bggo-wallpaper-layer` 固定图层。图片自身使用 VS Code 沙箱允许的 `vscode-file://vscode-app/...` URI。
+样式通过纯 CSS `body::after` 创建固定背景图层，图片自身使用 VS Code 沙箱允许的 `vscode-file://vscode-app/...` URI。注入过程**严格保留官方默认的 Content-Security-Policy (CSP) 安全策略**，不删除任何 CSP 标签，彻底避免干扰 Codex、Copilot 等依赖 Webview 的 AI 与工具扩展。
 
 ```text
 选择图片
   → 保存全局配置
-  → 生成全局存储中的壁纸脚本
-  → 更新 vscode_custom_css.imports
+  → 生成全局存储中的纯 CSS 样式
   → 检查/修复工作台权限
-  → 调用 Custom CSS and JS Loader
+  → 安全注入工作台（保留原生 CSP）
   → 重新加载工作台
 ```
 

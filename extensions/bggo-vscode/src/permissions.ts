@@ -1,14 +1,11 @@
 import { execFile } from "node:child_process";
 import { constants } from "node:fs";
-import { access, realpath, stat } from "node:fs/promises";
+import { access } from "node:fs/promises";
 import { userInfo } from "node:os";
-import * as path from "node:path";
 import * as vscode from "vscode";
+import { locateWorkbench, type WorkbenchTarget } from "./patcher";
 
-type WorkbenchTarget = {
-  directory: string;
-  html: string;
-};
+export { locateWorkbench, type WorkbenchTarget };
 
 const authorizeAction = "一键授权并继续";
 const copyAction = "复制手动命令";
@@ -52,54 +49,6 @@ export function isWorkbenchPermissionError(error: unknown): boolean {
   return /EACCES|EPERM|permission denied/i.test(message);
 }
 
-async function locateWorkbench(): Promise<WorkbenchTarget | undefined> {
-  const appRoot = await realpath(vscode.env.appRoot);
-  const base = path.join(appRoot, "out", "vs", "code");
-  const directories = [
-    path.join(base, "electron-browser", "workbench"),
-    path.join(base, "electron-browser"),
-    path.join(base, "electron-sandbox", "workbench"),
-    path.join(base, "electron-sandbox"),
-  ];
-  const htmlNames = [
-    "workbench-dev.html",
-    "workbench.esm.html",
-    "workbench.html",
-    "workbench-apc-extension.html",
-  ];
-
-  for (const directory of directories) {
-    for (const htmlName of htmlNames) {
-      const html = path.join(directory, htmlName);
-      try {
-        if (!(await stat(html)).isFile()) {
-          continue;
-        }
-        const realDirectory = await realpath(directory);
-        const realHTML = await realpath(html);
-        assertInside(appRoot, realDirectory);
-        assertInside(realDirectory, realHTML);
-        return {
-          directory: realDirectory,
-          html: realHTML,
-        };
-      } catch {
-        // Try the next path used by supported VS Code versions and forks.
-      }
-    }
-  }
-  return undefined;
-}
-
-function assertInside(parent: string, child: string): void {
-  const relative = path.relative(parent, child);
-  if (relative === "") {
-    return;
-  }
-  if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
-    throw new Error("工作台路径不在 VS Code 安装目录内");
-  }
-}
 
 async function canModify(target: WorkbenchTarget): Promise<boolean> {
   try {
