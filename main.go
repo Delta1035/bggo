@@ -679,8 +679,10 @@ func (a *application) applyVSCode() {
 	if path == "" {
 		return
 	}
-	a.busy = true
-	a.setStatus("正在映射到 VS Code 背景…", false)
+	a.update(func() {
+		a.busy = true
+		a.setStatus("正在映射到 VS Code 背景…", false)
+	})
 	go func() {
 		report, err := a.vscode.Apply(path)
 		if err != nil {
@@ -717,8 +719,10 @@ func (a *application) applyWallpaper() {
 	if path == "" {
 		return
 	}
-	a.busy = true
-	a.setStatus("正在设置系统壁纸…", false)
+	a.update(func() {
+		a.busy = true
+		a.setStatus("正在设置系统壁纸…", false)
+	})
 	syncVSCode := a.syncVSCode
 	go func() {
 		err := a.setter.Set(path)
@@ -778,10 +782,15 @@ func (a *application) loadOnlineCategories() {
 				return
 			}
 			a.categories = cats
+			var firstCat *online.Category
 			if len(cats) > 0 {
 				a.selectedCategory = cats[0]
 				a.onlinePage = 1
-				a.loadOnlineWallpapers(cats[0], 1)
+				cat := cats[0]
+				firstCat = &cat
+			}
+			if firstCat != nil {
+				go a.loadOnlineWallpapers(*firstCat, 1)
 			}
 		})
 	}()
@@ -965,13 +974,13 @@ func (a *application) requestThumbnail(item online.WallpaperItem) {
 }
 
 func (a *application) setStatus(message string, isError bool) {
-	a.update(func() {
-		a.status, a.error = message, isError
-	})
+	a.status, a.error = message, isError
 }
 
 func (a *application) checkForUpdates() {
-	a.setStatus("正在检查应用更新…", false)
+	a.update(func() {
+		a.setStatus("正在检查应用更新…", false)
+	})
 	if a.checkUpdate != nil {
 		a.checkUpdate()
 	}

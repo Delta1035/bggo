@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -116,6 +117,7 @@ func TestCheckForUpdates(t *testing.T) {
 func TestApplyVSCode_AutoInstallExtension(t *testing.T) {
 	tmp := t.TempDir()
 	userDir := filepath.Join(tmp, "User")
+	_ = os.MkdirAll(userDir, 0o755)
 	dummyImg := filepath.Join(tmp, "wall.png")
 	_ = os.WriteFile(dummyImg, []byte("pngdata"), 0o644)
 
@@ -150,7 +152,7 @@ func TestApplyVSCode_AutoInstallExtension(t *testing.T) {
 	case <-installedDone:
 		// 成功触发自动下载安装
 	case <-time.After(3 * time.Second):
-		t.Fatal("timeout waiting for auto-install of extension")
+		t.Fatalf("timeout waiting for auto-install of extension, status=%q", a.Status())
 	}
 }
 
@@ -270,12 +272,29 @@ func TestCategoryIcon(t *testing.T) {
 }
 
 type testWallpaperSetter struct {
+	mu         sync.Mutex
 	calledPath string
+	done       chan struct{}
 }
 
 func (m *testWallpaperSetter) Set(path string) error {
+	m.mu.Lock()
 	m.calledPath = path
+	m.mu.Unlock()
+	if m.done != nil {
+		select {
+		case <-m.done:
+		default:
+			close(m.done)
+		}
+	}
 	return nil
+}
+
+func (m *testWallpaperSetter) Path() string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.calledPath
 }
 
 func generateTestPNG() []byte {
@@ -302,7 +321,7 @@ func TestApplyOnlineWallpaper(t *testing.T) {
 	}
 	onlineSvc.Client = srv.Client()
 
-	mockSetter := &testWallpaperSetter{}
+	mockSetter := &testWallpaperSetter{done: make(chan struct{})}
 	a := newApplication()
 	a.onlineSvc = onlineSvc
 	a.setter = mockSetter
@@ -320,20 +339,20 @@ func TestApplyOnlineWallpaper(t *testing.T) {
 
 	// 等待后台下载并应用完成
 	deadline := time.Now().Add(3 * time.Second)
-	for a.busy && time.Now().Before(deadline) {
+	for a.IsBusy() && time.Now().Before(deadline) {
 		time.Sleep(20 * time.Millisecond)
 	}
 
-	if mockSetter.calledPath == "" {
+	if mockSetter.Path() == "" {
 		t.Fatalf("expected setter to be called with downloaded path")
 	}
-	if a.selected != mockSetter.calledPath {
-		t.Errorf("a.selected %q != setter path %q", a.selected, mockSetter.calledPath)
+	if a.Selected() != mockSetter.Path() {
+		t.Errorf("a.selected %q != setter path %q", a.Selected(), mockSetter.Path())
 	}
-	if !strings.Contains(a.status, "壁纸已成功应用到桌面") {
-		t.Errorf("expected success status, got %q", a.status)
+	if !strings.Contains(a.Status(), "壁纸已成功应用到桌面") {
+		t.Errorf("expected success status, got %q", a.Status())
 	}
-	if a.preview == nil {
+	if a.Preview() == nil {
 		t.Errorf("expected preview bitmap to be loaded")
 	}
 }
@@ -368,21 +387,21 @@ func TestPreviewOnlineWallpaper(t *testing.T) {
 	a.previewOnlineWallpaper(item)
 
 	deadline := time.Now().Add(3 * time.Second)
-	for a.busy && time.Now().Before(deadline) {
+	for a.IsBusy() && time.Now().Before(deadline) {
 		time.Sleep(20 * time.Millisecond)
 	}
 
 	if a.onlineView != "preview" {
 		t.Errorf("expected onlineView = preview, got %s", a.onlineView)
 	}
-	if a.preview == nil {
+	if a.Preview() == nil {
 		t.Fatalf("expected non-nil preview bitmap")
 	}
-	if a.selected == "" {
+	if a.Selected() == "" {
 		t.Errorf("expected non-empty selected path")
 	}
-	if !strings.Contains(a.status, "已加载高清预览") {
-		t.Errorf("expected preview status, got %q", a.status)
+	if !strings.Contains(a.Status(), "已加载高清预览") {
+		t.Errorf("expected preview status, got %q", a.Status())
 	}
 }
 
@@ -429,18 +448,19 @@ func TestLoadOnlineCategoriesAndWallpapers(t *testing.T) {
 	a.loadOnlineCategories()
 
 	deadline := time.Now().Add(3 * time.Second)
-	for (a.loadingOnline || len(a.categories) == 0 || len(a.wallpapers) == 0) && time.Now().Before(deadline) {
+	for (a.IsLoadingOnline() || len(a.Categories()) == 0 || len(a.Wallpapers()) == 0) && time.Now().Before(deadline) {
 		time.Sleep(20 * time.Millisecond)
 	}
 
-	if len(a.categories) != 2 {
-		t.Fatalf("expected 2 categories, got %d (%+v)", len(a.categories), a.categories)
+	cats := a.Categories()
+	wps := a.Wallpapers()
+	if len(cats) != 2 {
+		t.Fatalf("expected 2 categories, got %d (%+v)", len(cats), cats)
 	}
-	if len(a.wallpapers) != 1 {
-		t.Fatalf("expected 1 wallpaper, got %d (%+v)", len(a.wallpapers), a.wallpapers)
+	if len(wps) != 1 {
+		t.Fatalf("expected 1 wallpaper, got %d (%+v)", len(wps), wps)
 	}
-	if a.wallpapers[0].Title != "Bing今日大图" {
-		t.Errorf("expected wallpaper title 'Bing今日大图', got %q", a.wallpapers[0].Title)
+	if wps[0].Title != "Bing今日大图" {
+		t.Errorf("expected wallpaper title 'Bing今日大图', got %q", wps[0].Title)
 	}
 }
-
