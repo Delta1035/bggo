@@ -15,7 +15,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-const AppVersion = "v0.2.0"
+const AppVersion = "v0.2.1"
 
 type application struct {
 	window      *mygo.Window
