@@ -27,6 +27,11 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     }),
   );
+
+  const initialPath = vscode.workspace.getConfiguration("bggo.wallpaper").get<string>("path", "").trim();
+  if (initialPath) {
+    void refreshWallpaper(context, false);
+  }
 }
 
 async function selectWallpaper(context: vscode.ExtensionContext): Promise<void> {
