@@ -3,8 +3,7 @@ name: Release draft
 on:
   push:
     tags:
-      - 'desktop-v*'
-      - 'vscode-v*'
+      - 'v*'
 
 permissions:
   contents: read
@@ -17,29 +16,23 @@ jobs:
   version:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
-    outputs:
-      component: ${{ steps.version.outputs.component }}
     steps:
       - uses: actions/checkout@v4
       - name: Validate tag against component version
-        id: version
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           python3 - <<'PY'
           import json, os, re
           tag = os.environ['RELEASE_TAG']
-          match = re.fullmatch(r'(desktop|vscode)-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)', tag)
+          match = re.fullmatch(r'v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)', tag)
           if not match:
-              raise SystemExit('Expected desktop-vX.Y.Z or vscode-vX.Y.Z (numeric versions only)')
-          component = match[1]
-          path = 'mygo.json' if component == 'desktop' else 'extensions/bggo-vscode/package.json'
-          with open(path) as f:
-              version = json.load(f)['version']
-          if tag != f'{component}-v{version}':
-              raise SystemExit(f'Tag does not match {path}: {version}')
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-              f.write(f'component={component}\n')
+              raise SystemExit('Expected vX.Y.Z (numeric semver only, e.g. v0.2.3)')
+          version = f'{match[1]}.{match[2]}.{match[3]}'
+          with open('mygo.json') as f:
+              desktop_ver = json.load(f)['version']
+          if version != desktop_ver:
+              raise SystemExit(f'Tag {tag} does not match mygo.json: {desktop_ver}')
           PY
 
   build:
@@ -56,9 +49,16 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          pattern: ${{ needs.version.outputs.component == 'desktop' && 'desktop-*' || 'vscode' }}
           merge-multiple: true
           path: release-assets
+      - name: Prepare release assets
+        run: |
+          for vsix in release-assets/bggo-wallpaper-*.vsix; do
+            if [ -f "$vsix" ]; then
+              cp "$vsix" release-assets/bggo-wallpaper.vsix
+              break
+            fi
+          done
       - name: Write checksums and build metadata
         env:
           RELEASE_TAG: ${{ github.ref_name }}
@@ -69,18 +69,17 @@ jobs:
           cd release-assets
           sha256sum -- * > SHA256SUMS.txt
           sha256sum --check SHA256SUMS.txt
-      - name: Create unsigned prerelease draft
+      - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           cat > notes.md <<'NOTES'
-          Alpha 测试包，尚未进行代码签名及完整真机验证。
-          请先完成安装、启动、升级和卸载冒烟测试，再发布此草稿。
-          SHA256SUMS.txt 提供完整性校验；BUILD-INFO.txt 记录构建提交和运行链接，并非签名证明。
-          VS Code 扩展依赖 be5invis.vscode-custom-css，修改工作台后可能显示“安装似乎损坏”。
+          BGGo 发布版本。
+          包含桌面客户端安装包（Linux deb / tar.gz、Windows exe / portable zip）、更新清单以及 VS Code 壁纸扩展包。
+          SHA256SUMS.txt 提供完整性校验；BUILD-INFO.txt 记录构建提交和运行链接。
           NOTES
           gh release create "$RELEASE_TAG" release-assets/* \
-            --verify-tag --draft --prerelease --title "$RELEASE_TAG (Alpha)" \
+            --verify-tag --title "$RELEASE_TAG" \
             --notes-file notes.md

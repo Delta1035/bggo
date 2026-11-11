@@ -1,8 +1,13 @@
 package main
 
 import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"bggo/internal/library"
 	"bggo/internal/vscode"
@@ -99,5 +104,46 @@ func TestCheckForUpdates(t *testing.T) {
 	}
 	if a.error {
 		t.Errorf("expected error=false")
+	}
+}
+
+func TestApplyVSCode_AutoInstallExtension(t *testing.T) {
+	tmp := t.TempDir()
+	userDir := filepath.Join(tmp, "User")
+	dummyImg := filepath.Join(tmp, "wall.png")
+	_ = os.WriteFile(dummyImg, []byte("pngdata"), 0o644)
+
+	installedDone := make(chan struct{})
+	mockRunner := func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		close(installedDone)
+		return []byte("installed"), nil
+	}
+
+	fakeCLI := filepath.Join(tmp, "code")
+	_ = os.WriteFile(fakeCLI, []byte(""), 0o755)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("fake-vsix"))
+	}))
+	defer srv.Close()
+
+	a := &application{
+		selected: dummyImg,
+		vscode: vscode.Service{
+			UserDir:       userDir,
+			ExtensionDir:  filepath.Join(tmp, "extensions"),
+			VSCodeCLIPath: fakeCLI,
+			DownloadURL:   srv.URL,
+			CommandRunner: mockRunner,
+		},
+	}
+
+	a.applyVSCode()
+
+	select {
+	case <-installedDone:
+		// 成功触发自动下载安装
+	case <-time.After(3 * time.Second):
+		t.Fatal("timeout waiting for auto-install of extension")
 	}
 }

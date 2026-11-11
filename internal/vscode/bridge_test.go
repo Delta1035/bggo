@@ -1,7 +1,11 @@
 package vscode
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -203,5 +207,118 @@ func TestApplyRejectsInvalidFile(t *testing.T) {
 	_, err = svc.Apply(txtFile)
 	if err == nil || !strings.Contains(err.Error(), "不支持") {
 		t.Errorf("expected unsupported extension error, got %v", err)
+	}
+}
+
+func TestFindVSCodeCLI(t *testing.T) {
+	// 指定不存在的自定义路径
+	svc := Service{VSCodeCLIPath: "/path/to/nonexistent/code_bin"}
+	_, err := svc.FindVSCodeCLI()
+	if err == nil || !strings.Contains(err.Error(), "不存在") {
+		t.Errorf("expected nonexistent CLI error, got: %v", err)
+	}
+
+	// 指定真实存在的文件
+	tmp := filepath.Join(t.TempDir(), "fake-code")
+	_ = os.WriteFile(tmp, []byte("#!/bin/sh\n"), 0o755)
+	svcSuccess := Service{VSCodeCLIPath: tmp}
+	got, err := svcSuccess.FindVSCodeCLI()
+	if err != nil || got != tmp {
+		t.Errorf("FindVSCodeCLI() = %q, %v; want %q, nil", got, err, tmp)
+	}
+}
+
+func TestDownloadAndInstallExtension_Success(t *testing.T) {
+	fakeVSIXData := []byte("PK\x03\x04fake-vsix-content-test")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/octet-stream")
+		_, _ = w.Write(fakeVSIXData)
+	}))
+	defer srv.Close()
+
+	var recordedCmd string
+	var recordedArgs []string
+
+	mockRunner := func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		recordedCmd = name
+		recordedArgs = args
+		return []byte("Extension installed successfully"), nil
+	}
+
+	fakeCLI := filepath.Join(t.TempDir(), "code")
+	_ = os.WriteFile(fakeCLI, []byte(""), 0o755)
+
+	svc := Service{
+		DownloadURL:   srv.URL + "/bggo-wallpaper.vsix",
+		VSCodeCLIPath: fakeCLI,
+		CommandRunner: mockRunner,
+	}
+
+	err := svc.DownloadAndInstallExtension(context.Background())
+	if err != nil {
+		t.Fatalf("DownloadAndInstallExtension failed: %v", err)
+	}
+
+	if recordedCmd != fakeCLI {
+		t.Errorf("expected command %s, got %s", fakeCLI, recordedCmd)
+	}
+
+	if len(recordedArgs) != 3 || recordedArgs[0] != "--install-extension" || recordedArgs[2] != "--force" {
+		t.Errorf("unexpected command args: %v", recordedArgs)
+	}
+
+	// 验证下载保存的文件是否存在且内容一致
+	vsixPath := recordedArgs[1]
+	downloadedData, err := os.ReadFile(vsixPath)
+	if err != nil {
+		t.Fatalf("failed to read installed vsix: %v", err)
+	}
+	if string(downloadedData) != string(fakeVSIXData) {
+		t.Errorf("vsix content mismatch, got %q, want %q", string(downloadedData), string(fakeVSIXData))
+	}
+}
+
+func TestDownloadAndInstallExtension_DownloadFail(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "Not Found", http.StatusNotFound)
+	}))
+	defer srv.Close()
+
+	fakeCLI := filepath.Join(t.TempDir(), "code")
+	_ = os.WriteFile(fakeCLI, []byte(""), 0o755)
+
+	svc := Service{
+		DownloadURL:   srv.URL + "/not-found.vsix",
+		VSCodeCLIPath: fakeCLI,
+	}
+
+	err := svc.DownloadAndInstallExtension(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "404") {
+		t.Errorf("expected 404 error, got: %v", err)
+	}
+}
+
+func TestDownloadAndInstallExtension_CommandError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("fake-vsix"))
+	}))
+	defer srv.Close()
+
+	mockRunner := func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		return []byte("Error: corrupted archive"), errors.New("exit status 1")
+	}
+
+	fakeCLI := filepath.Join(t.TempDir(), "code")
+	_ = os.WriteFile(fakeCLI, []byte(""), 0o755)
+
+	svc := Service{
+		DownloadURL:   srv.URL,
+		VSCodeCLIPath: fakeCLI,
+		CommandRunner: mockRunner,
+	}
+
+	err := svc.DownloadAndInstallExtension(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "corrupted archive") {
+		t.Errorf("expected command error with stderr output, got: %v", err)
 	}
 }

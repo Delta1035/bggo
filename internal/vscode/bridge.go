@@ -2,14 +2,19 @@ package vscode
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 )
 
 const (
@@ -28,6 +33,9 @@ const (
 	ManagedStyleFile   = "bggo-wallpaper.css"
 )
 
+// CommandRunner defines the function signature for executing system commands.
+type CommandRunner func(ctx context.Context, name string, args ...string) ([]byte, error)
+
 // ApplyReport holds the summary of mapping a wallpaper into VS Code.
 type ApplyReport struct {
 	UserDir            string
@@ -40,8 +48,12 @@ type ApplyReport struct {
 
 // Service provides methods to detect VS Code and apply wallpaper settings.
 type Service struct {
-	UserDir      string // If set, overrides the auto-detected VS Code User directory.
-	ExtensionDir string // If set, overrides the auto-detected VS Code extensions directory.
+	UserDir       string        // If set, overrides the auto-detected VS Code User directory.
+	ExtensionDir  string        // If set, overrides the auto-detected VS Code extensions directory.
+	DownloadURL   string        // If set, overrides the default VS Code extension download URL.
+	VSCodeCLIPath string        // If set, overrides the auto-detected 'code' executable path.
+	HTTPClient    *http.Client  // If set, overrides the default HTTP client used for downloads.
+	CommandRunner CommandRunner // If set, overrides the default exec.Command runner.
 }
 
 // Apply maps the given wallpaper into the VS Code configuration and global storage.
@@ -127,7 +139,7 @@ func (s Service) Apply(wallpaperPath string) (*ApplyReport, error) {
 	}, nil
 }
 
-// IsExtensionInstalled checks if BGGo wallpaper extension exists in VS Code extensions or storage.
+// IsExtensionInstalled checks if BGGo wallpaper extension exists in VS Code extensions directory.
 func (s Service) IsExtensionInstalled(userDir string) bool {
 	// Check extensions directories
 	extDirs := s.candidateExtensionDirs()
@@ -142,14 +154,107 @@ func (s Service) IsExtensionInstalled(userDir string) bool {
 			}
 		}
 	}
-	// Also check if storage dir exists as fallback
-	if userDir != "" {
-		storageDir := filepath.Join(userDir, "globalStorage", ManagedExtensionID)
-		if info, err := os.Stat(storageDir); err == nil && info.IsDir() {
-			return true
+	return false
+}
+
+// FindVSCodeCLI finds the executable path for the VS Code command line interface.
+func (s Service) FindVSCodeCLI() (string, error) {
+	if s.VSCodeCLIPath != "" {
+		if _, err := os.Stat(s.VSCodeCLIPath); err == nil {
+			return s.VSCodeCLIPath, nil
+		}
+		if path, err := exec.LookPath(s.VSCodeCLIPath); err == nil {
+			return path, nil
+		}
+		return "", fmt.Errorf("指定的 VS Code CLI 不存在: %s", s.VSCodeCLIPath)
+	}
+
+	candidates := []string{"code"}
+	if runtime.GOOS == "windows" {
+		candidates = []string{"code.cmd", "code.exe", "code"}
+	}
+	candidates = append(candidates, "code-insiders", "codium")
+	if runtime.GOOS == "windows" {
+		candidates = append(candidates, "code-insiders.cmd", "codium.cmd")
+	}
+
+	for _, name := range candidates {
+		if path, err := exec.LookPath(name); err == nil {
+			return path, nil
 		}
 	}
-	return false
+	return "", errors.New("未检测到 VS Code 命令行工具 (code)。请确保已安装 VS Code 并将其添加到环境变量 PATH")
+}
+
+// DownloadAndInstallExtension downloads the VS Code extension vsix package and installs it.
+func (s Service) DownloadAndInstallExtension(ctx context.Context) error {
+	cliPath, err := s.FindVSCodeCLI()
+	if err != nil {
+		return err
+	}
+
+	downloadURL := s.DownloadURL
+	if downloadURL == "" {
+		downloadURL = "https://github.com/Delta1035/bggo/releases/latest/download/bggo-wallpaper.vsix"
+	}
+
+	client := s.HTTPClient
+	if client == nil {
+		client = &http.Client{Timeout: 60 * time.Second}
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "GET", downloadURL, nil)
+	if err != nil {
+		return fmt.Errorf("创建下载请求失败: %w", err)
+	}
+	req.Header.Set("User-Agent", "BGGo-Desktop-Updater")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("下载 VS Code 插件失败: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("下载 VS Code 插件失败，状态码 %d", resp.StatusCode)
+	}
+
+	cacheDir, err := os.UserCacheDir()
+	if err != nil || cacheDir == "" {
+		cacheDir = os.TempDir()
+	}
+	targetDir := filepath.Join(cacheDir, "bggo")
+	if err := os.MkdirAll(targetDir, 0o755); err != nil {
+		return fmt.Errorf("创建插件缓存目录失败: %w", err)
+	}
+	vsixPath := filepath.Join(targetDir, "bggo-wallpaper.vsix")
+
+	outFile, err := os.Create(vsixPath)
+	if err != nil {
+		return fmt.Errorf("创建插件临时文件失败: %w", err)
+	}
+	if _, err := io.Copy(outFile, resp.Body); err != nil {
+		_ = outFile.Close()
+		return fmt.Errorf("写入插件文件失败: %w", err)
+	}
+	if err := outFile.Close(); err != nil {
+		return fmt.Errorf("完成插件文件保存失败: %w", err)
+	}
+
+	runner := s.CommandRunner
+	if runner == nil {
+		runner = func(c context.Context, name string, args ...string) ([]byte, error) {
+			cmd := exec.CommandContext(c, name, args...)
+			return cmd.CombinedOutput()
+		}
+	}
+
+	output, err := runner(ctx, cliPath, "--install-extension", vsixPath, "--force")
+	if err != nil {
+		return fmt.Errorf("安装插件失败: %w (输出: %s)", err, strings.TrimSpace(string(output)))
+	}
+
+	return nil
 }
 
 func (s Service) resolveUserDir() (string, error) {

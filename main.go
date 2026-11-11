@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -16,7 +17,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-const AppVersion = "v0.2.2"
+const AppVersion = "v0.2.3"
 
 type application struct {
 	window      *mygo.Window
@@ -276,18 +277,38 @@ func (a *application) applyVSCode() {
 	a.setStatus("正在映射到 VS Code 背景…", false)
 	go func() {
 		report, err := a.vscode.Apply(path)
+		if err != nil {
+			if a.window != nil {
+				a.window.Update(func() {
+					a.busy = false
+					a.setStatus("映射到 VS Code 失败: "+err.Error(), true)
+				})
+			}
+			return
+		}
+		if !report.ExtensionInstalled {
+			if a.window != nil {
+				a.window.Update(func() {
+					a.setStatus("未检测到 BGGo 插件，正在自动下载并安装…", false)
+				})
+			}
+			installErr := a.vscode.DownloadAndInstallExtension(context.Background())
+			if a.window != nil {
+				a.window.Update(func() {
+					a.busy = false
+					if installErr != nil {
+						a.setStatus("已写入配置，但自动安装插件失败: "+installErr.Error()+"（可在 VS Code 手动安装）", true)
+					} else {
+						a.setStatus("已自动安装 VS Code 插件并映射背景（在 VS Code 中重新加载生效）", false)
+					}
+				})
+			}
+			return
+		}
 		if a.window != nil {
 			a.window.Update(func() {
 				a.busy = false
-				if err != nil {
-					a.setStatus("映射到 VS Code 失败: "+err.Error(), true)
-					return
-				}
-				if !report.ExtensionInstalled {
-					a.setStatus("已写入 VS Code 配置（未检测到 BGGo 插件，请在 VS Code 安装生效）", false)
-				} else {
-					a.setStatus("已映射到 VS Code 背景（在 VS Code 中重新加载生效）", false)
-				}
+				a.setStatus("已映射到 VS Code 背景（在 VS Code 中重新加载生效）", false)
 			})
 		}
 	}()
@@ -316,7 +337,10 @@ func (a *application) applyWallpaper() {
 					if vscodeErr != nil {
 						a.setStatus("壁纸已应用，但映射到 VS Code 失败: "+vscodeErr.Error(), true)
 					} else if vscodeReport != nil && !vscodeReport.ExtensionInstalled {
-						a.setStatus("壁纸已应用，已写入 VS Code 配置（未检测到插件）", false)
+						go func() {
+							_ = a.vscode.DownloadAndInstallExtension(context.Background())
+						}()
+						a.setStatus("壁纸已应用，正在后台自动安装 VS Code 插件…", false)
 					} else {
 						a.setStatus("壁纸已应用，并已映射到 VS Code 背景", false)
 					}
