@@ -108,7 +108,7 @@ func TestLiveGitHubUpdateDetection(t *testing.T) {
 
 	svc := NewService(Config{
 		Repo:      "Delta1035/bggo",
-		TagPrefix: "desktop-v",
+		TagPrefix: "v",
 		PublicKey: "Q6BKxOcOtIoRKdZIpkmUZzK6SePGA7EUGjIxgdjoIQ4=",
 		AuthToken: token,
 	})
@@ -120,8 +120,8 @@ func TestLiveGitHubUpdateDetection(t *testing.T) {
 		return
 	}
 
-	if !strings.HasPrefix(tag, "desktop-v") {
-		t.Errorf("expected live latest tag to start with desktop-v, got %q", tag)
+	if !strings.HasPrefix(tag, "v") {
+		t.Errorf("expected live latest tag to start with v, got %q", tag)
 	}
 
 	manifest, err := svc.FetchManifest(ctx, tag, "linux-amd64")

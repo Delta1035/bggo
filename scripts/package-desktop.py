@@ -12,7 +12,7 @@ version = json.loads(Path("mygo.json").read_text(encoding="utf-8"))["version"]
 stage = Path("build") / f"{platform}-amd64"
 out = Path("release-assets")
 out.mkdir(exist_ok=True)
-patterns = ("*.deb", "*.tar.gz", "install.sh") if platform == "linux" else ("* Setup *.exe",)
+patterns = ("*.deb", "*.tar.gz", "install.sh") if platform == "linux" else ("* Setup *.exe", "*.tar.gz")
 packages = []
 for pattern in patterns:
     matches = list(stage.glob(pattern))

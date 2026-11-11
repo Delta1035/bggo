@@ -93,7 +93,13 @@ func (s *Service) FindLatestRelease(ctx context.Context) (string, error) {
 	}
 
 	for _, r := range releases {
-		if !r.Draft && !r.Prerelease && strings.HasPrefix(r.TagName, s.cfg.TagPrefix) {
+		if r.Draft || r.Prerelease {
+			continue
+		}
+		if s.cfg.TagPrefix == "v" && strings.HasPrefix(r.TagName, "vscode-") {
+			continue
+		}
+		if strings.HasPrefix(r.TagName, s.cfg.TagPrefix) {
 			return r.TagName, nil
 		}
 	}
