@@ -658,3 +658,96 @@ func TestDropHintInSidebar(t *testing.T) {
 		t.Errorf("missing drop hint '或直接拖放图片到窗口' in local view")
 	}
 }
+
+func TestWallpaperSpec(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "spec_test.png")
+	data := generateTestPNG()
+	_ = os.WriteFile(filePath, data, 0o644)
+
+	// 1. 无 Bitmap 时回退为本地文件大小
+	spec := wallpaperSpec(filePath, nil)
+	if !strings.Contains(spec, "B") {
+		t.Errorf("expected file size in spec, got %q", spec)
+	}
+
+	// 2. 带解码 Bitmap 时应包含分辨率档位与文件大小
+	bmp, err := ui.DecodeBitmap(data)
+	if err != nil {
+		t.Fatalf("DecodeBitmap failed: %v", err)
+	}
+	specWithBmp := wallpaperSpec(filePath, bmp)
+	if !strings.Contains(specWithBmp, "·") || !strings.Contains(specWithBmp, "2×2") {
+		t.Errorf("expected combined resolution and size, got %q", specWithBmp)
+	}
+}
+
+func TestCategoryBadge(t *testing.T) {
+	bingCat := online.Category{ID: "bing", Source: "bing", Name: "必应精选"}
+	if badge := categoryBadge(bingCat); badge != "8" {
+		t.Errorf("expected '8' for bing badge, got %q", badge)
+	}
+
+	cat4K := online.Category{ID: "36", Source: "360", Name: "4K专区"}
+	if badge := categoryBadge(cat4K); badge != "128" {
+		t.Errorf("expected '128' for 4K badge, got %q", badge)
+	}
+}
+
+func TestMacOSDockSimulatorInPreview(t *testing.T) {
+	tmpDir := t.TempDir()
+	pngPath := filepath.Join(tmpDir, "dock_test.png")
+	_ = os.WriteFile(pngPath, generateTestPNG(), 0o644)
+
+	a := newApplication()
+	a.loadWallpaper(pngPath)
+
+	tt := ui.NewTester(a.view, 1000, 680)
+	// 原型 Dock 6 个应用图标
+	for _, dockIcon := range []string{"🧭", "⚡", "⟨/⟩", "📁", "🎵", "⚙"} {
+		if !tt.HasText(dockIcon) {
+			t.Errorf("missing macOS Dock simulator icon %q in preview", dockIcon)
+		}
+	}
+}
+
+func TestOnlineSearchFilter(t *testing.T) {
+	a := newApplication()
+	a.tab = "online"
+	a.onlineView = "grid"
+	a.wallpapers = []online.WallpaperItem{
+		{ID: "1", Title: "挪威极光夜景", Source: "360"},
+		{ID: "2", Title: "阿尔卑斯山金色晨曦", Source: "360"},
+		{ID: "3", Title: "极简太空星空", Source: "360"},
+	}
+
+	// 1. 无搜索词时，3张卡片全数显示
+	tt := ui.NewTester(a.view, 1000, 680)
+	if !tt.HasText("挪威极光夜景") || !tt.HasText("阿尔卑斯山金色晨曦") || !tt.HasText("极简太空星空") {
+		t.Fatalf("expected all 3 items to show without filter")
+	}
+
+	// 2. 搜索 "极光"
+	a.searchKeyword = "极光"
+	tt = ui.NewTester(a.view, 1000, 680)
+	if !tt.HasText("挪威极光夜景") {
+		t.Errorf("expected '挪威极光夜景' to match '极光'")
+	}
+	if tt.HasText("阿尔卑斯山金色晨曦") {
+		t.Errorf("did not expect '阿尔卑斯山金色晨曦' when filtering '极光'")
+	}
+}
+
+func TestOnlineCard4KUHDBadge(t *testing.T) {
+	a := newApplication()
+	a.tab = "online"
+	a.onlineView = "grid"
+	a.wallpapers = []online.WallpaperItem{
+		{ID: "1", Title: "挪威极光夜景", Resolution: "3840x2160", Source: "360"},
+	}
+
+	tt := ui.NewTester(a.view, 1000, 680)
+	if !tt.HasText("4K UHD") {
+		t.Errorf("missing '4K UHD' badge on wallpaper card")
+	}
+}
