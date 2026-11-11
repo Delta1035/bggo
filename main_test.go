@@ -14,6 +14,7 @@ func TestInitialView(t *testing.T) {
 	tt := ui.NewTester(a.view, 1000, 680)
 	for _, text := range []string{
 		"BGGo",
+		AppVersion,
 		"桌面壁纸",
 		"还没有选择壁纸",
 		"应用到桌面",
@@ -24,6 +25,9 @@ func TestInitialView(t *testing.T) {
 		if !tt.HasText(text) {
 			t.Errorf("missing text %q; texts = %q", text, tt.Texts())
 		}
+	}
+	if tt.HasText("Linux 优先 · Windows 已适配") {
+		t.Errorf("expected 'Linux 优先 · Windows 已适配' to be removed")
 	}
 }
 
