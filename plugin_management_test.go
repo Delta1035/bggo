@@ -70,3 +70,28 @@ func TestInstalledPluginLifecycle(t *testing.T) {
 		t.Fatalf("plugin directory still exists, stat error = %v", err)
 	}
 }
+
+func TestPermissionExpansionIsDetected(t *testing.T) {
+	a := &application{
+		pluginRecords: map[string]*managedPlugin{
+			"demo": {
+				Manifest: plugin.Manifest{
+					ID:          "demo",
+					Permissions: plugin.Permissions{Network: []string{"api.example.com"}},
+				},
+			},
+		},
+	}
+	if !a.permissionExpanded(plugin.Manifest{
+		ID:          "demo",
+		Permissions: plugin.Permissions{Network: []string{"api.example.com", "images.example.com"}},
+	}) {
+		t.Fatal("new network host was not detected")
+	}
+	if a.permissionExpanded(plugin.Manifest{
+		ID:          "demo",
+		Permissions: plugin.Permissions{Network: []string{"api.example.com"}},
+	}) {
+		t.Fatal("unchanged network permission was reported as expanded")
+	}
+}

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"time"
 )
 
 // DirectoryPlugin is the validated metadata for a plugin installed on disk.
@@ -72,6 +73,17 @@ func ScanDirectory(root string) ([]DirectoryPlugin, error) {
 // EnabledState stores the user's enable/disable decision per plugin ID.
 type EnabledState map[string]bool
 
+// Metadata records where and when a plugin was installed and which
+// permissions were accepted at that time.
+type Metadata struct {
+	Source      string    `json:"source"`
+	InstalledAt time.Time `json:"installedAt"`
+	Version     string    `json:"version"`
+	Network     []string  `json:"network,omitempty"`
+}
+
+type MetadataState map[string]Metadata
+
 func LoadEnabledState(path string) (EnabledState, error) {
 	b, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -88,8 +100,31 @@ func LoadEnabledState(path string) (EnabledState, error) {
 }
 
 func SaveEnabledState(path string, state EnabledState) error {
+	return saveJSON(path, state, "插件状态")
+}
+
+func LoadMetadata(path string) (MetadataState, error) {
+	b, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return MetadataState{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var state MetadataState
+	if err := json.Unmarshal(b, &state); err != nil {
+		return nil, fmt.Errorf("解析插件来源记录失败: %w", err)
+	}
+	return state, nil
+}
+
+func SaveMetadata(path string, state MetadataState) error {
+	return saveJSON(path, state, "插件来源记录")
+}
+
+func saveJSON(path string, state any, label string) error {
 	if state == nil {
-		state = EnabledState{}
+		state = map[string]any{}
 	}
 	data, err := json.MarshalIndent(state, "", "  ")
 	if err != nil {

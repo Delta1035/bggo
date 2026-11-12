@@ -51,6 +51,19 @@ func TestScanDirectoryAndEnabledState(t *testing.T) {
 	if !equalEnabledState(got, want) {
 		t.Fatalf("LoadEnabledState() = %#v, want %#v", got, want)
 	}
+
+	metadataPath := filepath.Join(root, "plugin-metadata.json")
+	metadata := MetadataState{"scan-demo": {Source: "local-zip", Version: "1.0.0", Network: []string{"example.com"}}}
+	if err := SaveMetadata(metadataPath, metadata); err != nil {
+		t.Fatalf("SaveMetadata() failed: %v", err)
+	}
+	loadedMetadata, err := LoadMetadata(metadataPath)
+	if err != nil {
+		t.Fatalf("LoadMetadata() failed: %v", err)
+	}
+	if loadedMetadata["scan-demo"].Source != "local-zip" || loadedMetadata["scan-demo"].Version != "1.0.0" {
+		t.Fatalf("LoadMetadata() = %#v", loadedMetadata)
+	}
 }
 
 func TestCheckCompatibility(t *testing.T) {

@@ -69,33 +69,36 @@ type application struct {
 	localSubTab string // "recent" | "favorites"
 
 	// 在线壁纸相关
-	onlineSvc        *online.Service
-	plugins          []*plugin.Plugin
-	pluginRecords    map[string]*managedPlugin
-	pluginRoot       string
-	pluginDataRoot   string
-	pluginStatePath  string
-	pluginState      plugin.EnabledState
-	pendingPluginZip string
-	pendingManifest  *plugin.Manifest
-	pluginStatus     string
-	tab              string // "local" | "online" | "plugins"
-	onlineView       string // "grid" | "preview"
-	searchKeyword    string // 在线壁纸搜索关键词
-	filterOption     string // 筛选选项: 精选推荐/最新壁纸/最高人气
-	categories       []online.Category
-	selectedCategory online.Category
-	wallpapers       []online.WallpaperItem
-	selectedOnline   *online.WallpaperItem
-	onlinePage       int
-	onlineMore       bool
-	onlineTotal      int
-	loadingOnline    bool
-	thumbBitmaps     map[string]*ui.Bitmap
-	thumbLoading     map[string]bool
-	recentBitmaps    map[string]*ui.Bitmap
-	thumbMu          sync.Mutex
-	loadSeq          atomic.Uint64
+	onlineSvc                 *online.Service
+	plugins                   []*plugin.Plugin
+	pluginRecords             map[string]*managedPlugin
+	pluginRoot                string
+	pluginDataRoot            string
+	pluginStatePath           string
+	pluginState               plugin.EnabledState
+	pluginMetaPath            string
+	pluginMetadata            plugin.MetadataState
+	pendingPluginZip          string
+	pendingManifest           *plugin.Manifest
+	pendingPermissionExpanded bool
+	pluginStatus              string
+	tab                       string // "local" | "online" | "plugins"
+	onlineView                string // "grid" | "preview"
+	searchKeyword             string // 在线壁纸搜索关键词
+	filterOption              string // 筛选选项: 精选推荐/最新壁纸/最高人气
+	categories                []online.Category
+	selectedCategory          online.Category
+	wallpapers                []online.WallpaperItem
+	selectedOnline            *online.WallpaperItem
+	onlinePage                int
+	onlineMore                bool
+	onlineTotal               int
+	loadingOnline             bool
+	thumbBitmaps              map[string]*ui.Bitmap
+	thumbLoading              map[string]bool
+	recentBitmaps             map[string]*ui.Bitmap
+	thumbMu                   sync.Mutex
+	loadSeq                   atomic.Uint64
 
 	tray     *mygo.Tray
 	quitting bool

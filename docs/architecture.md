@@ -64,7 +64,7 @@ resources/plugins/<id>
   → UI / 下载缓存 / 系统壁纸
 ```
 
-插件只能通过 manifest 声明的网络主机使用 `host.fetch`。插件返回的原图和缩略图 URL 在进入宿主下载流程前会再次校验协议和声明主机，插件包保存在 `bggo/plugins/<id>`，设置与存储分别保存到 `bggo/plugin-data/<id>/settings.json` 和 `storage.json`。每个插件按需启动，调用超时或关闭后下一次调用会创建新的 runtime。
+插件只能通过 manifest 声明的网络主机使用 `host.fetch`。插件返回的原图和缩略图 URL 在进入宿主下载流程前会再次校验协议和声明主机，插件包保存在 `bggo/plugins/<id>`，设置与存储分别保存到 `bggo/plugin-data/<id>/settings.json` 和 `storage.json`。插件来源、版本、安装时间和已确认网络权限保存到 `plugin-metadata.json`；更新扩大网络权限时需要在管理页再次确认。每个插件按需启动，调用超时或关闭后下一次调用会创建新的 runtime。
 
 ## VS Code 扩展
 

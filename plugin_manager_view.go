@@ -84,6 +84,9 @@ func (a *application) drawPendingPlugin(c *ui.Context) {
 				ui.Text(c, "待确认").FontSize(11).Bold().TextColor(ui.Hex("#B45309"))
 			})
 			ui.Text(c, pluginNetworkText(*manifest)).FontSize(11).TextColor(ui.Hex("#78350F"))
+			if a.pendingPermissionExpanded {
+				ui.Text(c, "此更新会扩大网络权限，确认后才会替换当前版本。").FontSize(11).Bold().TextColor(ui.Hex("#B45309"))
+			}
 			ui.Text(c, "插件代码会在独立 MoeJS runtime 中运行；安装后仍可随时停用。").FontSize(11).TextColor(ui.Hex("#92400E"))
 			ui.Row(c).Gap(8).Children(func() {
 				install := breeze.PrimaryButton(c, "确认安装").Height(30).Padding(0, 12)
@@ -119,7 +122,11 @@ func (a *application) drawPluginCard(c *ui.Context, record *managedPlugin) {
 					ui.Text(c, record.Manifest.Name).FontSize(14).Bold().TextColor(ui.Hex("#0F172A"))
 					ui.Text(c, record.Manifest.ID).FontSize(10).TextColor(ui.Hex("#94A3B8"))
 				})
-				ui.Text(c, fmt.Sprintf("版本 %s · %s", record.Manifest.Version, pluginSourceLabel(record))).FontSize(11).TextColor(ui.Hex("#64748B"))
+				sourceText := pluginSourceLabel(record)
+				if metadata, ok := a.pluginMetadata[record.Manifest.ID]; ok && !metadata.InstalledAt.IsZero() {
+					sourceText += " · " + metadata.InstalledAt.Local().Format("2006-01-02 15:04")
+				}
+				ui.Text(c, fmt.Sprintf("版本 %s · %s", record.Manifest.Version, sourceText)).FontSize(11).TextColor(ui.Hex("#64748B"))
 				ui.Text(c, pluginNetworkText(record.Manifest)).FontSize(11).TextColor(ui.Hex("#64748B")).SingleLine()
 				if record.Error != "" {
 					ui.Text(c, "状态："+record.Error).FontSize(11).TextColor(ui.Hex("#DC2626")).SingleLine()

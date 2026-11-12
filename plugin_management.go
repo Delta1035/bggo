@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
+	"time"
 
 	"bggo/internal/online"
 	"bggo/internal/plugin"
@@ -25,6 +27,7 @@ type managedPlugin struct {
 func (a *application) initPluginManagement() {
 	a.pluginRecords = make(map[string]*managedPlugin)
 	a.pluginState = plugin.EnabledState{}
+	a.pluginMetadata = plugin.MetadataState{}
 	configDir, err := os.UserConfigDir()
 	if err != nil {
 		a.pluginStatus = "无法确定插件配置目录: " + err.Error()
@@ -34,12 +37,19 @@ func (a *application) initPluginManagement() {
 	a.pluginRoot = filepath.Join(baseDir, "plugins")
 	a.pluginDataRoot = filepath.Join(baseDir, "plugin-data")
 	a.pluginStatePath = filepath.Join(baseDir, "plugin-state.json")
+	a.pluginMetaPath = filepath.Join(baseDir, "plugin-metadata.json")
 	state, err := plugin.LoadEnabledState(a.pluginStatePath)
 	if err != nil {
 		a.pluginStatus = "读取插件状态失败: " + err.Error()
 		return
 	}
 	a.pluginState = state
+	metadata, err := plugin.LoadMetadata(a.pluginMetaPath)
+	if err != nil {
+		a.pluginStatus = "读取插件来源记录失败: " + err.Error()
+		return
+	}
+	a.pluginMetadata = metadata
 }
 
 func (a *application) registerBuiltinPluginRecords() {
@@ -54,6 +64,16 @@ func (a *application) registerBuiltinPluginRecords() {
 			Enabled:  a.pluginEnabledByDefault(manifest.ID),
 			Error:    "内置插件尚未启动",
 		}
+		if _, ok := a.pluginMetadata[manifest.ID]; !ok {
+			a.pluginMetadata[manifest.ID] = plugin.Metadata{
+				Source:  "embedded",
+				Version: manifest.Version,
+				Network: append([]string(nil), manifest.Permissions.Network...),
+			}
+		}
+	}
+	if a.pluginMetaPath != "" {
+		_ = plugin.SaveMetadata(a.pluginMetaPath, a.pluginMetadata)
 	}
 	for _, source := range a.plugins {
 		manifest := source.Manifest()
@@ -117,6 +137,42 @@ func (a *application) loadInstalledPluginRecords() {
 func (a *application) pluginEnabledByDefault(id string) bool {
 	enabled, ok := a.pluginState[id]
 	return !ok || enabled
+}
+
+func (a *application) permissionExpanded(manifest plugin.Manifest) bool {
+	previous := a.pluginRecords[manifest.ID]
+	if previous == nil || previous.Builtin {
+		return false
+	}
+	for _, requested := range manifest.Permissions.Network {
+		covered := false
+		for _, existing := range previous.Manifest.Permissions.Network {
+			if networkPermissionCovers(existing, requested) {
+				covered = true
+				break
+			}
+		}
+		if !covered {
+			return true
+		}
+	}
+	return false
+}
+
+func networkPermissionCovers(existing, requested string) bool {
+	existing = strings.ToLower(strings.TrimSpace(existing))
+	requested = strings.ToLower(strings.TrimSpace(requested))
+	if existing == "*" || existing == requested {
+		return true
+	}
+	if !strings.HasPrefix(existing, "*.") {
+		return false
+	}
+	base := existing[1:]
+	if strings.HasPrefix(requested, "*.") {
+		return strings.HasSuffix(requested[1:], base)
+	}
+	return strings.HasSuffix(requested, base)
 }
 
 func (a *application) externalPluginEnabled(id string) bool {
@@ -233,6 +289,7 @@ func (a *application) choosePluginArchive() {
 				a.error = true
 				return
 			}
+			a.pendingPermissionExpanded = a.permissionExpanded(manifest)
 			a.pendingPluginZip = paths[0]
 			a.pendingManifest = &manifest
 			a.pluginStatus = "已读取插件信息，请确认权限后安装"
@@ -273,6 +330,7 @@ func (a *application) installPendingPlugin() {
 			}
 			a.pendingPluginZip = ""
 			a.pendingManifest = nil
+			a.pendingPermissionExpanded = false
 			a.pluginStatus = "插件已安装并启用: " + manifest.Name
 			a.error = false
 		})
@@ -340,6 +398,15 @@ func (a *application) installPluginRecord(manifest plugin.Manifest) error {
 		}
 		return err
 	}
+	a.pluginMetadata[manifest.ID] = plugin.Metadata{
+		Source:      "local-zip",
+		InstalledAt: time.Now().UTC(),
+		Version:     manifest.Version,
+		Network:     append([]string(nil), manifest.Permissions.Network...),
+	}
+	if err := plugin.SaveMetadata(a.pluginMetaPath, a.pluginMetadata); err != nil {
+		return fmt.Errorf("保存插件来源记录失败: %w", err)
+	}
 	if oldSource != nil {
 		oldSource.Close()
 	}
@@ -364,8 +431,14 @@ func (a *application) uninstallPlugin(id string) {
 	}
 	delete(a.pluginRecords, id)
 	delete(a.pluginState, id)
+	delete(a.pluginMetadata, id)
 	if err := plugin.SaveEnabledState(a.pluginStatePath, a.pluginState); err != nil {
 		a.pluginStatus = "插件已卸载，但状态保存失败: " + err.Error()
+		a.error = true
+		return
+	}
+	if err := plugin.SaveMetadata(a.pluginMetaPath, a.pluginMetadata); err != nil {
+		a.pluginStatus = "插件已卸载，但来源记录保存失败: " + err.Error()
 		a.error = true
 		return
 	}
