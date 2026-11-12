@@ -43,6 +43,8 @@ go tool mygo build -platform linux/amd64,windows/amd64
 
 内置壁纸源位于 `resources/plugins/<id>`，由 `plugin.json` 和 `index.js` 组成。入口导出 `categories()`、`list()`，可选导出 `daily()` 或 `random()`；网络请求必须使用 `host.fetch`，且目标主机必须写入 manifest 的 `permissions.network`。图片地址也必须属于声明主机，否则宿主会丢弃该条目。
 
+第三方插件的 manifest、宿主 API、打包、调试和版本回滚说明见 [`docs/plugin-development.md`](plugin-development.md)，可直接打包的静态示例见 `examples/wallpaper-plugin`。
+
 插件包使用用户配置目录下的 `bggo/plugins/<id>`，运行数据单独保存在 `bggo/plugin-data/<id>`，启停状态保存在 `bggo/plugin-state.json`。不要把设置、缓存或运行时生成文件写入仓库。新增内置源时应同时保留同 ID 的 Go fallback、补充真实 MoeJS 调用链测试，并验证插件失败时其他源仍可用。
 
 重新生成图标：

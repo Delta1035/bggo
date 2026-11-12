@@ -1,0 +1,11 @@
+{
+  "type": "bggo-wallpaper",
+  "apiVersion": 1,
+  "id": "example-wallpaper",
+  "name": "示例壁纸源",
+  "version": "1.0.0",
+  "main": "index.js",
+  "permissions": {
+    "network": ["example.com"]
+  }
+}

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -50,6 +51,9 @@ func ScanDirectory(root string) ([]DirectoryPlugin, error) {
 	}
 	result := make([]DirectoryPlugin, 0, len(entries))
 	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), ".") {
+			continue
+		}
 		if entry.IsDir() && entry.Type()&os.ModeSymlink == 0 {
 			dir := filepath.Join(root, entry.Name())
 			manifest, inspectErr := InspectDirectory(dir)

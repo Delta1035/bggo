@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -75,6 +76,36 @@ func TestCheckCompatibility(t *testing.T) {
 	}
 	if err := CheckCompatibility(Manifest{MinAppVersion: "0.2"}, "v0.2.10"); err != nil {
 		t.Fatalf("short version rejected: %v", err)
+	}
+}
+
+func TestExamplePluginCompilesAndRuns(t *testing.T) {
+	dir := filepath.Join("..", "..", "examples", "wallpaper-plugin")
+	manifest, err := InspectDirectory(dir)
+	if err != nil {
+		t.Fatalf("InspectDirectory(example) failed: %v", err)
+	}
+	if manifest.ID != "example-wallpaper" {
+		t.Fatalf("example plugin ID = %q", manifest.ID)
+	}
+	source, err := Load(dir, t.TempDir())
+	if err != nil {
+		t.Fatalf("Load(example) failed: %v", err)
+	}
+	defer source.Close()
+	var categories []Category
+	if err := source.Call(context.Background(), "categories", nil, &categories); err != nil {
+		t.Fatalf("example categories() failed: %v", err)
+	}
+	if len(categories) != 1 || categories[0].ID != "sample" {
+		t.Fatalf("example categories() = %#v", categories)
+	}
+	var result ListResult
+	if err := source.Call(context.Background(), "list", map[string]any{"pageSize": 1}, &result); err != nil {
+		t.Fatalf("example list() failed: %v", err)
+	}
+	if len(result.Items) != 1 || result.Items[0].ID != "sample-01" {
+		t.Fatalf("example list() = %#v", result)
 	}
 }
 

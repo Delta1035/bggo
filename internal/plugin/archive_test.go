@@ -61,6 +61,42 @@ func TestInstallArchiveValidatesAndRunsPlugin(t *testing.T) {
 	}
 }
 
+func TestInstallArchiveKeepsHistoryAndRollsBack(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "plugins")
+	first := filepath.Join(t.TempDir(), "first.zip")
+	second := filepath.Join(t.TempDir(), "second.zip")
+	writePluginArchive(t, first, "rollback-demo", "1.0.0", `export function name() { return "first"; }`)
+	writePluginArchive(t, second, "rollback-demo", "2.0.0", `export function name() { return "second"; }`)
+	if _, err := InstallArchive(first, root); err != nil {
+		t.Fatalf("first install failed: %v", err)
+	}
+	if _, err := InstallArchive(second, root); err != nil {
+		t.Fatalf("second install failed: %v", err)
+	}
+	versions, err := ListVersions(root, "rollback-demo")
+	if err != nil {
+		t.Fatalf("ListVersions() failed: %v", err)
+	}
+	if len(versions) != 1 || versions[0].Manifest.Version != "1.0.0" {
+		t.Fatalf("ListVersions() = %#v", versions)
+	}
+	if _, err := Rollback(root, "rollback-demo", versions[0].ID); err != nil {
+		t.Fatalf("Rollback() failed: %v", err)
+	}
+	active, err := Load(filepath.Join(root, "rollback-demo"), t.TempDir())
+	if err != nil {
+		t.Fatalf("Load(rolled back) failed: %v", err)
+	}
+	defer active.Close()
+	var name string
+	if err := active.Call(context.Background(), "name", nil, &name); err != nil {
+		t.Fatalf("rolled back plugin call failed: %v", err)
+	}
+	if name != "first" {
+		t.Fatalf("rolled back plugin returned %q, want first", name)
+	}
+}
+
 func TestInspectArchiveRejectsUnsafeEntries(t *testing.T) {
 	validManifest := []byte(`{"type":"bggo-wallpaper","apiVersion":1,"id":"unsafe-demo","name":"Unsafe","version":"1.0.0","main":"index.js"}`)
 	tests := []struct {
@@ -126,6 +162,22 @@ func writeZip(t *testing.T, path string, files map[string][]byte) {
 	if err := file.Close(); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func writePluginArchive(t *testing.T, path, id, version, source string) {
+	t.Helper()
+	manifest, err := json.Marshal(Manifest{
+		Type:       pluginType,
+		APIVersion: pluginAPIVersion,
+		ID:         id,
+		Name:       id,
+		Version:    version,
+		Main:       "index.js",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeZip(t, path, map[string][]byte{"plugin.json": manifest, "index.js": []byte(source)})
 }
 
 func addZipBytes(t *testing.T, writer *zip.Writer, name string, data []byte) {

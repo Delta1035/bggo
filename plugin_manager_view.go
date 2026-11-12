@@ -128,6 +128,23 @@ func (a *application) drawPluginCard(c *ui.Context, record *managedPlugin) {
 				}
 				ui.Text(c, fmt.Sprintf("版本 %s · %s", record.Manifest.Version, sourceText)).FontSize(11).TextColor(ui.Hex("#64748B"))
 				ui.Text(c, pluginNetworkText(record.Manifest)).FontSize(11).TextColor(ui.Hex("#64748B")).SingleLine()
+				if !record.Builtin {
+					historyLabel := fmt.Sprintf("历史版本：%d", len(record.History))
+					if len(record.History) > 0 {
+						historyLabel += " · 上一版 " + record.History[0].Manifest.Version
+					}
+					ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
+						ui.Text(c, historyLabel).FontSize(11).TextColor(ui.Hex("#64748B"))
+						rollback := ui.ButtonBase(c.Key("plugin-rollback-"+record.Manifest.ID)).Height(24).Padding(0, 8).Radius(5).Background(ui.Hex("#F8FAFC")).Border(1, ui.Hex("#E2E8F0")).Disabled(len(record.History) == 0 || a.busy)
+						rollback.Children(func() {
+							ui.Text(c, "回滚上一版").FontSize(10).TextColor(ui.Hex("#334155"))
+						})
+						if rollback.Clicked() && len(record.History) > 0 && !a.busy {
+							version := record.History[0]
+							go a.confirmRollbackPlugin(record.Manifest.ID, record.Manifest.Name, version.ID, version.Manifest.Version)
+						}
+					})
+				}
 				if record.Error != "" {
 					ui.Text(c, "状态："+record.Error).FontSize(11).TextColor(ui.Hex("#DC2626")).SingleLine()
 				}
@@ -183,6 +200,34 @@ func (a *application) confirmUninstallPlugin(id, name string) {
 	if err == nil && result.Button == 0 {
 		a.update(func() { a.uninstallPlugin(id) })
 	}
+}
+
+func (a *application) confirmRollbackPlugin(id, name, versionID, version string) {
+	result, err := mygo.Dialog.Message(mygo.MessageOptions{
+		Parent:             a.window,
+		Type:               mygo.MessageWarning,
+		Title:              "回滚插件",
+		Message:            fmt.Sprintf("确定将 %s 回滚到 %s？", name, version),
+		Detail:             "当前版本会保留在历史记录中，插件运行数据不会删除。",
+		Buttons:            []string{"回滚", "取消"},
+		DestructiveButtons: []int{0},
+		CancelButton:       1,
+	})
+	if err != nil || result.Button != 0 {
+		return
+	}
+	a.update(func() {
+		a.busy = true
+		err := a.rollbackPlugin(id, versionID)
+		a.busy = false
+		if err != nil {
+			a.pluginStatus = "插件回滚失败: " + err.Error()
+			a.error = true
+			return
+		}
+		a.pluginStatus = fmt.Sprintf("插件 %s 已回滚到 %s", name, version)
+		a.error = false
+	})
 }
 
 func pluginSourceLabel(record *managedPlugin) string {

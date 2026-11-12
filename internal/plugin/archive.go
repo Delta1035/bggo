@@ -8,7 +8,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
+	"time"
 )
 
 const (
@@ -66,26 +68,102 @@ func InstallArchive(path, root string) (Manifest, error) {
 	if err := ensureChild(root, target); err != nil {
 		return Manifest{}, err
 	}
-	backup := filepath.Join(root, ".backup-"+manifest.ID)
-	backedUp := false
+	var previous string
 	if _, err := os.Stat(target); err == nil {
-		if err := os.Rename(target, backup); err != nil {
+		previousVersion := manifest.Version
+		if currentManifest, inspectErr := InspectDirectory(target); inspectErr == nil {
+			previousVersion = currentManifest.Version
+		}
+		historyDir := filepath.Join(root, ".history", manifest.ID)
+		if err := os.MkdirAll(historyDir, 0o700); err != nil {
+			return Manifest{}, fmt.Errorf("创建插件历史目录失败: %w", err)
+		}
+		previous = filepath.Join(historyDir, historyName(previousVersion))
+		if err := os.Rename(target, previous); err != nil {
 			return Manifest{}, fmt.Errorf("备份旧插件失败: %w", err)
 		}
-		backedUp = true
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return Manifest{}, fmt.Errorf("检查旧插件失败: %w", err)
 	}
 	if err := os.Rename(staging, target); err != nil {
-		if _, statErr := os.Stat(backup); statErr == nil {
-			_ = os.Rename(backup, target)
+		if previous != "" {
+			_ = os.Rename(previous, target)
 		}
 		return Manifest{}, fmt.Errorf("安装插件失败: %w", err)
 	}
-	if backedUp {
-		_ = os.RemoveAll(backup)
+	return manifest, nil
+}
+
+// VersionRecord describes a previous installed version kept for rollback.
+type VersionRecord struct {
+	ID       string
+	Manifest Manifest
+	Dir      string
+}
+
+// ListVersions returns previous versions from newest to oldest.
+func ListVersions(root, id string) ([]VersionRecord, error) {
+	if !pluginIDPattern.MatchString(id) {
+		return nil, fmt.Errorf("无效的插件 ID: %q", id)
+	}
+	historyRoot := filepath.Join(root, ".history", id)
+	entries, err := os.ReadDir(historyRoot)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	versions := make([]VersionRecord, 0, len(entries))
+	for _, entry := range entries {
+		if !entry.IsDir() || entry.Type()&os.ModeSymlink != 0 {
+			continue
+		}
+		dir := filepath.Join(historyRoot, entry.Name())
+		manifest, inspectErr := InspectDirectory(dir)
+		if inspectErr != nil {
+			continue
+		}
+		versions = append(versions, VersionRecord{ID: entry.Name(), Manifest: manifest, Dir: dir})
+	}
+	sort.Slice(versions, func(i, j int) bool { return versions[i].ID > versions[j].ID })
+	return versions, nil
+}
+
+// Rollback swaps the active package with one of its previous versions.
+func Rollback(root, id, versionID string) (Manifest, error) {
+	if !pluginIDPattern.MatchString(id) || versionID == "" || filepath.Base(versionID) != versionID {
+		return Manifest{}, errors.New("无效的插件版本路径")
+	}
+	target := filepath.Join(root, id)
+	previous := filepath.Join(root, ".history", id, versionID)
+	if err := ensureChild(root, target); err != nil {
+		return Manifest{}, err
+	}
+	if err := ensureChild(filepath.Join(root, ".history", id), previous); err != nil {
+		return Manifest{}, err
+	}
+	manifest, err := InspectDirectory(previous)
+	if err != nil {
+		return Manifest{}, fmt.Errorf("历史插件版本校验失败: %w", err)
+	}
+	if _, err := os.Stat(target); err != nil {
+		return Manifest{}, fmt.Errorf("当前插件不存在: %w", err)
+	}
+	historyTarget := filepath.Join(root, ".history", id, historyName(manifest.Version))
+	if err := os.Rename(target, historyTarget); err != nil {
+		return Manifest{}, fmt.Errorf("保存当前插件版本失败: %w", err)
+	}
+	if err := os.Rename(previous, target); err != nil {
+		_ = os.Rename(historyTarget, target)
+		return Manifest{}, fmt.Errorf("切换历史插件版本失败: %w", err)
 	}
 	return manifest, nil
+}
+
+func historyName(version string) string {
+	version = strings.NewReplacer("/", "_", "\\", "_", ":", "_").Replace(version)
+	return time.Now().UTC().Format("20060102T150405.000000000Z") + "-" + version
 }
 
 // RemoveInstalled removes only the plugin package. Runtime data is kept in a
@@ -101,6 +179,7 @@ func RemoveInstalled(root, id string) error {
 	if err := os.RemoveAll(target); err != nil {
 		return fmt.Errorf("卸载插件失败: %w", err)
 	}
+	_ = os.RemoveAll(filepath.Join(root, ".history", id))
 	return nil
 }
 

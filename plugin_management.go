@@ -18,6 +18,7 @@ import (
 type managedPlugin struct {
 	Manifest plugin.Manifest
 	Dir      string
+	History  []plugin.VersionRecord
 	Builtin  bool
 	Enabled  bool
 	Source   *plugin.Plugin
@@ -120,6 +121,7 @@ func (a *application) loadInstalledPluginRecords() {
 			Enabled:  a.externalPluginEnabled(id),
 			Error:    errorText(entry.Err),
 		}
+		a.refreshPluginHistory(record)
 		a.pluginRecords[id] = record
 		if entry.Err == nil && record.Enabled {
 			if err := plugin.CheckCompatibility(record.Manifest, AppVersion); err != nil {
@@ -304,7 +306,7 @@ func (a *application) installPendingPlugin() {
 	}
 	zipPath := a.pendingPluginZip
 	manifest := *a.pendingManifest
-	if _, builtin := a.pluginRecords[manifest.ID]; builtin {
+	if record, exists := a.pluginRecords[manifest.ID]; exists && record.Builtin {
 		a.pluginStatus = fmt.Sprintf("插件 ID %q 已被内置插件占用", manifest.ID)
 		a.error = true
 		return
@@ -341,7 +343,7 @@ func (a *application) installPluginRecord(manifest plugin.Manifest) error {
 	if err := plugin.CheckCompatibility(manifest, AppVersion); err != nil {
 		return err
 	}
-	if _, builtin := a.pluginRecords[manifest.ID]; builtin {
+	if existing, exists := a.pluginRecords[manifest.ID]; exists && existing.Builtin {
 		return fmt.Errorf("插件 ID %q 已被内置插件占用", manifest.ID)
 	}
 	previousRecord := a.pluginRecords[manifest.ID]
@@ -358,6 +360,7 @@ func (a *application) installPluginRecord(manifest plugin.Manifest) error {
 		Dir:      filepath.Join(a.pluginRoot, manifest.ID),
 		Enabled:  true,
 	}
+	a.refreshPluginHistory(record)
 	a.pluginRecords[manifest.ID] = record
 	a.pluginState[manifest.ID] = true
 	a.activateInstalledPlugin(record)
@@ -409,6 +412,86 @@ func (a *application) installPluginRecord(manifest plugin.Manifest) error {
 	}
 	if oldSource != nil {
 		oldSource.Close()
+	}
+	return nil
+}
+
+func (a *application) refreshPluginHistory(record *managedPlugin) {
+	if record == nil || record.Builtin || a.pluginRoot == "" {
+		return
+	}
+	history, err := plugin.ListVersions(a.pluginRoot, record.Manifest.ID)
+	if err == nil {
+		record.History = history
+	}
+}
+
+func (a *application) rollbackPlugin(id, versionID string) error {
+	record := a.pluginRecords[id]
+	if record == nil {
+		return fmt.Errorf("未找到插件: %s", id)
+	}
+	if record.Builtin {
+		return errors.New("内置插件不支持回滚")
+	}
+	a.refreshPluginHistory(record)
+	var selected plugin.VersionRecord
+	found := false
+	for _, version := range record.History {
+		if version.ID == versionID {
+			selected = version
+			found = true
+			break
+		}
+	}
+	if !found {
+		return errors.New("未找到要回滚的插件版本")
+	}
+	if err := plugin.CheckCompatibility(selected.Manifest, AppVersion); err != nil {
+		return err
+	}
+
+	wasEnabled := record.Enabled
+	if a.onlineSvc != nil {
+		a.onlineSvc.RemoveProvider(id)
+	}
+	if record.Source != nil {
+		record.Source.Close()
+		record.Source = nil
+	}
+	manifest, err := plugin.Rollback(a.pluginRoot, id, versionID)
+	if err != nil {
+		record.Error = err.Error()
+		if wasEnabled {
+			a.activateInstalledPlugin(record)
+		}
+		return err
+	}
+	record.Manifest = manifest
+	record.Dir = filepath.Join(a.pluginRoot, id)
+	record.Enabled = wasEnabled
+	record.Error = ""
+	if wasEnabled {
+		a.activateInstalledPlugin(record)
+		if record.Error != "" {
+			return errors.New(record.Error)
+		}
+	} else {
+		record.Error = "已停用"
+	}
+	a.refreshPluginHistory(record)
+
+	metadata := a.pluginMetadata[id]
+	if metadata.Source == "" {
+		metadata.Source = "local-zip"
+	}
+	metadata.Version = manifest.Version
+	metadata.Network = append([]string(nil), manifest.Permissions.Network...)
+	a.pluginMetadata[id] = metadata
+	if a.pluginMetaPath != "" {
+		if err := plugin.SaveMetadata(a.pluginMetaPath, a.pluginMetadata); err != nil {
+			return fmt.Errorf("保存插件来源记录失败: %w", err)
+		}
 	}
 	return nil
 }
