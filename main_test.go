@@ -977,6 +977,11 @@ func TestBottomBarStandaloneMapVSCode(t *testing.T) {
 	dummyImg := filepath.Join(tmpDir, "wall.png")
 	_ = os.WriteFile(dummyImg, generateTestPNG(), 0o644)
 
+	userDir := filepath.Join(tmpDir, "User")
+	_ = os.MkdirAll(userDir, 0o755)
+	extDir := filepath.Join(tmpDir, "extensions")
+	_ = os.MkdirAll(filepath.Join(extDir, "bggo.bggo-wallpaper-0.1.0"), 0o755)
+
 	called := false
 	mockRunner := func(ctx context.Context, name string, args ...string) ([]byte, error) {
 		called = true
@@ -986,7 +991,8 @@ func TestBottomBarStandaloneMapVSCode(t *testing.T) {
 	a := newApplication()
 	a.selected = dummyImg
 	a.vscode = vscode.Service{
-		UserDir:       filepath.Join(tmpDir, "User"),
+		UserDir:       userDir,
+		ExtensionDir:  extDir,
 		CommandRunner: mockRunner,
 	}
 
@@ -998,10 +1004,10 @@ func TestBottomBarStandaloneMapVSCode(t *testing.T) {
 
 	// 验证触发 applyVSCode 后的执行状态
 	a.applyVSCode()
-	if !a.busy {
+	if !a.IsBusy() {
 		t.Errorf("expected busy=true while applying to VS Code")
 	}
-	for i := 0; i < 50 && a.busy; i++ {
+	for i := 0; i < 100 && a.IsBusy(); i++ {
 		time.Sleep(10 * time.Millisecond)
 	}
 	_ = called
