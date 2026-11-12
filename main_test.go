@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -17,6 +19,7 @@ import (
 
 	"bggo/internal/library"
 	"bggo/internal/online"
+	"bggo/internal/updater"
 	"bggo/internal/vscode"
 	"github.com/egoist/mygo/ui"
 )
@@ -27,12 +30,12 @@ func TestInitialView(t *testing.T) {
 	for _, text := range []string{
 		"BGGo",
 		AppVersion,
-		"桌面壁纸",
+		"桌面壁纸预览",
 		"还没有选择壁纸",
-		"应用到桌面",
-		"映射到 VS Code",
+		"✓ 应用到桌面",
 		"同步到 VS Code",
 		"检查更新",
+		"↗ 在文件夹中显示",
 	} {
 		if !tt.HasText(text) {
 			t.Errorf("missing text %q; texts = %q", text, tt.Texts())
@@ -114,6 +117,146 @@ func TestCheckForUpdates(t *testing.T) {
 	}
 }
 
+func TestApplication_InitUpdater(t *testing.T) {
+	a := newApplication()
+	if a.updaterSvc == nil {
+		t.Fatalf("expected updaterSvc to be initialized")
+	}
+	if a.checkUpdate == nil {
+		t.Fatalf("expected checkUpdate to be set")
+	}
+}
+
+func TestApplication_HandleCheckForUpdates_UpToDate(t *testing.T) {
+	manifestPayload := updater.Manifest{
+		Version:   "0.2.6",
+		Date:      "2026-11-12T00:00:00Z",
+		URL:       "https://example.com/bggo-0.2.6-linux-amd64.tar.gz",
+		Size:      12345,
+		Signature: "sig",
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(manifestPayload)
+	}))
+	defer server.Close()
+
+	svc := updater.NewService(updater.Config{
+		Repo:          "Delta1035/bggo",
+		HTTPClient:    server.Client(),
+		UpdateFeedURL: server.URL,
+	})
+
+	a := &application{
+		updaterSvc: svc,
+	}
+	a.checkUpdate = a.handleCheckForUpdates
+
+	a.checkForUpdates()
+
+	// Wait for goroutine in handleCheckForUpdates to complete
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		a.mu.RLock()
+		st := a.status
+		a.mu.RUnlock()
+		if strings.Contains(st, "已是最新版本") {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	expectedStatus := fmt.Sprintf("BGGo 已是最新版本 (%s)", AppVersion)
+	if a.status != expectedStatus {
+		t.Errorf("status = %q, want %q", a.status, expectedStatus)
+	}
+}
+
+func TestApplication_HandleCheckForUpdates_UpdateAvailable(t *testing.T) {
+	manifestPayload := updater.Manifest{
+		Version:   "0.9.9",
+		Date:      "2026-11-12T00:00:00Z",
+		URL:       "https://example.com/bggo-0.9.9-linux-amd64.tar.gz",
+		Size:      12345,
+		Signature: "sig",
+		Notes:     "Awesome release",
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(manifestPayload)
+	}))
+	defer server.Close()
+
+	svc := updater.NewService(updater.Config{
+		Repo:          "Delta1035/bggo",
+		HTTPClient:    server.Client(),
+		UpdateFeedURL: server.URL,
+	})
+
+	a := &application{
+		updaterSvc: svc,
+	}
+	a.checkUpdate = a.handleCheckForUpdates
+
+	a.checkForUpdates()
+
+	// Wait for goroutine in handleCheckForUpdates to complete
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		a.mu.RLock()
+		st := a.status
+		a.mu.RUnlock()
+		if strings.Contains(st, "发现新版本 0.9.9") {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	expectedStatus := "发现新版本 0.9.9！"
+	if a.status != expectedStatus {
+		t.Errorf("status = %q, want %q", a.status, expectedStatus)
+	}
+}
+
+func TestApplication_RunSilentUpdateCheck(t *testing.T) {
+	manifestPayload := updater.Manifest{
+		Version:   "0.9.9",
+		Date:      "2026-11-12T00:00:00Z",
+		URL:       "https://example.com/bggo-0.9.9-linux-amd64.tar.gz",
+		Size:      12345,
+		Signature: "sig",
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(manifestPayload)
+	}))
+	defer server.Close()
+
+	svc := updater.NewService(updater.Config{
+		Repo:          "Delta1035/bggo",
+		HTTPClient:    server.Client(),
+		UpdateFeedURL: server.URL,
+	})
+
+	a := &application{
+		updaterSvc: svc,
+	}
+	a.runSilentUpdateCheck()
+
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	if !strings.Contains(a.status, "发现新版本 0.9.9") {
+		t.Errorf("expected status to mention new version, got %q", a.status)
+	}
+}
+
 func TestApplyVSCode_AutoInstallExtension(t *testing.T) {
 	tmp := t.TempDir()
 	userDir := filepath.Join(tmp, "User")
@@ -168,15 +311,14 @@ func TestOnlineViewTabsAndControls(t *testing.T) {
 	tt := ui.NewTester(a.view, 1000, 680)
 
 	for _, text := range []string{
-		"💻 本地壁纸",
-		"🌐 在线图库",
+		"本地壁纸",
+		"在线图库",
 		"壁纸分类",
 		"必应每日精选",
 		"4K专区",
 		"在线壁纸 · 必应每日精选",
-		"数据源: 微软必应官方",
-		"⊞ 壁纸列表",
-		"🖼 高清预览",
+		"微软必应官方精选 · 每日自动同步 · 4K 超高清原图直连",
+		"精选推荐",
 	} {
 		if !tt.HasText(text) {
 			t.Errorf("missing text %q in online view; texts = %q", text, tt.Texts())
@@ -211,11 +353,11 @@ func TestOnlineGridRenderingWithItems(t *testing.T) {
 
 	for _, text := range []string{
 		"测试4K山水壁纸",
-		"3840x2160",
+		"4K UHD",
 		"极简星空大片",
 		"1920x1080",
-		"👁 预览",
-		"应用",
+		"↗ 预览",
+		"✓ 应用",
 		"◀ 上一页",
 		"下一页 ▶",
 	} {
@@ -473,20 +615,16 @@ func TestFavoritesAndSubTabs(t *testing.T) {
 	a := newApplication()
 	a.store = store
 	a.tab = "local"
-	a.localSubTab = "recent"
 	a.recent = []string{"/tmp/recent1.png"}
 	a.favorites = []string{"/tmp/fav1.png"}
 
-	// 1. 测试测试器渲染 "🕒 最近 (1)" 和 "❤️ 收藏 (1)"
+	// 1. 测试侧边栏渲染原型设计的 "最近使用 · 1" 和 "清空"
 	tt := ui.NewTester(a.view, 1000, 680)
-	if !tt.HasText("🕒 最近 (1)") {
-		t.Errorf("missing text '🕒 最近 (1)'")
+	if !tt.HasText("最近使用 · 1") {
+		t.Errorf("missing text '最近使用 · 1'")
 	}
-	if !tt.HasText("❤️ 收藏 (1)") {
-		t.Errorf("missing text '❤️ 收藏 (1)'")
-	}
-	if !tt.HasText("每日自动必应壁纸") {
-		t.Errorf("missing text '每日自动必应壁纸'")
+	if !tt.HasText("清空") {
+		t.Errorf("missing text '清空'")
 	}
 
 	// 2. 切换收藏
@@ -570,12 +708,30 @@ func TestBottomBarFavAndExport(t *testing.T) {
 	a.store = store
 	a.selected = filepath.Join(tmpDir, "test.png")
 
+	// 1. 默认自动同步开启时，底部栏渲染 "VS Code 自动同步中"
+	a.syncVSCode = true
 	tt := ui.NewTester(a.view, 1000, 680)
-	if !tt.HasText("🤍 收藏") {
-		t.Errorf("missing text '🤍 收藏'")
+	for _, text := range []string{
+		"↗ 在文件夹中显示",
+		"VS Code 自动同步中",
+		"✓ 应用到桌面",
+	} {
+		if !tt.HasText(text) {
+			t.Errorf("missing text %q in bottom bar (sync=true)", text)
+		}
 	}
-	if !tt.HasText("💾 另存为") {
-		t.Errorf("missing text '💾 另存为'")
+
+	// 2. 切换同步关闭时，底部栏渲染 "同步到 VS Code"
+	a.syncVSCode = false
+	tt = ui.NewTester(a.view, 1000, 680)
+	if !tt.HasText("同步到 VS Code") {
+		t.Errorf("missing text '同步到 VS Code' in bottom bar (sync=false)")
+	}
+
+	// 3. 验证核心收藏功能真实有效
+	a.toggleFavorite(a.selected)
+	if !a.IsFavorite(a.selected) {
+		t.Errorf("expected wallpaper to be favorited")
 	}
 }
 
@@ -593,15 +749,15 @@ func TestPreviewStatusLabel_AppliedVsPreviewing(t *testing.T) {
 	if !tt.HasText("预览模式 (未应用)") {
 		t.Errorf("expected '预览模式 (未应用)' badge when wallpaper is not yet applied")
 	}
-	if tt.HasText("当前桌面生效中") {
-		t.Errorf("did not expect '当前桌面生效中' before wallpaper applied")
+	if tt.HasText("当前系统桌面壁纸") {
+		t.Errorf("did not expect '当前系统桌面壁纸' before wallpaper applied")
 	}
 
 	// 2. 模拟应用成功
 	a.applied = pngPath
 	tt = ui.NewTester(a.view, 1000, 680)
-	if !tt.HasText("当前桌面生效中") {
-		t.Errorf("expected '当前桌面生效中' badge when selected == applied")
+	if !tt.HasText("当前系统桌面壁纸") {
+		t.Errorf("expected '当前系统桌面壁纸' badge when selected == applied")
 	}
 	if tt.HasText("预览模式 (未应用)") {
 		t.Errorf("did not expect '预览模式 (未应用)' after wallpaper applied")
