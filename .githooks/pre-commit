@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# BGGo Git pre-commit hook
+# 用于防止代码格式未达标或版本号不一致导致 CI 失败
+set -e
+
+# 1. 自动格式化 Go 代码并重新放入暂存区
+staged_go_files=$(git diff --cached --name-only --diff-filter=ACM | grep '\.go$' || true)
+
+if [ -n "$staged_go_files" ]; then
+    unformatted=$(echo "$staged_go_files" | xargs gofmt -l)
+    if [ -n "$unformatted" ]; then
+        echo "========================================================"
+        echo "⚠️  检测到以下 Go 文件未对齐 gofmt 规范，正在自动修复："
+        echo "$unformatted"
+        echo "$unformatted" | xargs gofmt -w
+        echo "$unformatted" | xargs git add
+        echo "✅ 已自动完成格式化并重新加入暂存区！"
+        echo "========================================================"
+    fi
+fi
+
+# 2. 版本号一致性防错校验（如果涉及版本文件改动）
+staged_files=$(git diff --cached --name-only --diff-filter=ACM)
+has_version_files=$(echo "$staged_files" | grep -E '^(mygo\.json|main\.go|extensions/bggo-vscode/package\.json)$' || true)
+
+if [ -n "$has_version_files" ]; then
+    python3 - <<'PY'
+import json, re, sys
+from pathlib import Path
+
+try:
+    mygo_ver = json.loads(Path("mygo.json").read_text(encoding="utf-8")).get("version")
+    vscode_ver = json.loads(Path("extensions/bggo-vscode/package.json").read_text(encoding="utf-8")).get("version")
+    
+    main_go = Path("main.go").read_text(encoding="utf-8")
+    m = re.search(r'const AppVersion = "v?([0-9]+\.[0-9]+\.[0-9]+)"', main_go)
+    main_ver = m.group(1) if m else None
+
+    if mygo_ver and vscode_ver and main_ver:
+        if not (mygo_ver == vscode_ver == main_ver):
+            print("========================================================", file=sys.stderr)
+            print("❌ 错误: 检测到项目内各组件版本号不一致！", file=sys.stderr)
+            print(f"  - mygo.json: {mygo_ver}", file=sys.stderr)
+            print(f"  - extensions/bggo-vscode/package.json: {vscode_ver}", file=sys.stderr)
+            print(f"  - main.go (AppVersion): {main_ver}", file=sys.stderr)
+            print("\n建议运行以下命令统一更新后再提交：", file=sys.stderr)
+            print(f"  python3 scripts/bump-version.py {mygo_ver}", file=sys.stderr)
+            print("========================================================", file=sys.stderr)
+            sys.exit(1)
+except Exception as e:
+    # 避免在非完整环境阻断正常开发，输出警告即可
+    print(f"⚠️ 版本校验跳过: {e}", file=sys.stderr)
+PY
+fi
+
+exit 0
