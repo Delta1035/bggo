@@ -34,7 +34,7 @@ import (
 //go:embed resources/icon.png
 var appIconBytes []byte
 
-const AppVersion = "v0.2.9"
+const AppVersion = "v0.2.10"
 
 const (
 	maxWallpaperFileBytes int64 = 64 << 20

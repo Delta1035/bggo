@@ -1,7 +1,7 @@
 {
   "name": "BGGo",
   "identifier": "app.bggo.wallpaper",
-  "version": "0.2.9",
+  "version": "0.2.10",
   "out": "build",
   "updates": {
     "publicKey": "Q6BKxOcOtIoRKdZIpkmUZzK6SePGA7EUGjIxgdjoIQ4=",
