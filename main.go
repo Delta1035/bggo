@@ -25,7 +25,7 @@ import (
 //go:embed resources/icon.png
 var appIconBytes []byte
 
-const AppVersion = "v0.2.6"
+const AppVersion = "v0.2.7"
 
 type wallpaperSetter interface {
 	Set(path string) error
