@@ -20,6 +20,7 @@ import (
 	"bggo/internal/icons"
 	"bggo/internal/library"
 	"bggo/internal/online"
+	"bggo/internal/plugin"
 	"bggo/internal/updater"
 	"bggo/internal/vscode"
 	"bggo/internal/wallpaper"
@@ -69,7 +70,16 @@ type application struct {
 
 	// 在线壁纸相关
 	onlineSvc        *online.Service
-	tab              string // "local" | "online"
+	plugins          []*plugin.Plugin
+	pluginRecords    map[string]*managedPlugin
+	pluginRoot       string
+	pluginDataRoot   string
+	pluginStatePath  string
+	pluginState      plugin.EnabledState
+	pendingPluginZip string
+	pendingManifest  *plugin.Manifest
+	pluginStatus     string
+	tab              string // "local" | "online" | "plugins"
 	onlineView       string // "grid" | "preview"
 	searchKeyword    string // 在线壁纸搜索关键词
 	filterOption     string // 筛选选项: 精选推荐/最新壁纸/最高人气
@@ -78,6 +88,8 @@ type application struct {
 	wallpapers       []online.WallpaperItem
 	selectedOnline   *online.WallpaperItem
 	onlinePage       int
+	onlineMore       bool
+	onlineTotal      int
 	loadingOnline    bool
 	thumbBitmaps     map[string]*ui.Bitmap
 	thumbLoading     map[string]bool
@@ -106,9 +118,15 @@ func newApplication() *application {
 	}
 
 	a.initUpdater()
+	a.initPluginManagement()
 
 	if onlineSvc, err := online.NewService(""); err == nil {
 		a.onlineSvc = onlineSvc
+		if a.pluginDataRoot != "" {
+			a.plugins = loadBuiltinWallpaperPluginsAt(onlineSvc, a.pluginDataRoot)
+		}
+		a.registerBuiltinPluginRecords()
+		a.loadInstalledPluginRecords()
 	}
 
 	store, err := library.NewStore()
@@ -372,6 +390,30 @@ func (a *application) drawSidebar(c *ui.Context, t *ui.Theme) {
 						a.loadOnlineCategories()
 					}
 				}
+
+				isPlugins := a.tab == "plugins"
+				btnPlugins := ui.ButtonBase(c.Key("tab-plugins")).Grow(1).FillHeight().Radius(6)
+				if isPlugins {
+					btnPlugins.Background(ui.Hex("#FFFFFF"))
+				} else {
+					btnPlugins.Background(ui.Hex("#00000000"))
+				}
+				btnPlugins.Children(func() {
+					ui.Row(c).Center().Gap(4).Children(func() {
+						icCol := ui.Hex("#64748B")
+						if isPlugins {
+							icCol = ui.Hex("#0F172A")
+						}
+						ui.Icon(c, icons.Download).Size(13, 13).TextColor(icCol)
+						lbl := ui.Text(c, "插件管理").FontSize(11).TextColor(icCol)
+						if isPlugins {
+							lbl.Bold()
+						}
+					})
+				})
+				if btnPlugins.Clicked() {
+					a.tab = "plugins"
+				}
 			})
 		})
 
@@ -523,7 +565,7 @@ func (a *application) drawSidebar(c *ui.Context, t *ui.Theme) {
 					}
 				})
 			})
-		} else {
+		} else if a.tab == "online" {
 			// 在线模式：壁纸分类列表 (带有图标与数量 Badge)
 			ui.Column(c).Grow(1).Gap(6).FillWidth().Children(func() {
 				ui.Row(c).AlignItems(ui.Center).Justify(ui.SpaceBetween).FillWidth().Padding(0, 2).Children(func() {
@@ -591,6 +633,14 @@ func (a *application) drawSidebar(c *ui.Context, t *ui.Theme) {
 					}
 				})
 			})
+		} else {
+			ui.Column(c).Grow(1).Gap(10).FillWidth().Children(func() {
+				ui.Text(c, "插件管理").FontSize(11).Bold().TextColor(ui.Hex("#64748B"))
+				ui.Text(c, "安装本地 ZIP 插件包，管理壁纸源生命周期").FontSize(11).TextColor(ui.Hex("#94A3B8"))
+				ui.Box(c).Padding(10).Radius(8).Background(ui.Hex("#EFF6FF")).Border(1, ui.Hex("#DBEAFE")).Children(func() {
+					ui.Text(c, fmt.Sprintf("已登记 %d 个插件", len(a.pluginRecords))).FontSize(12).Bold().TextColor(ui.Hex("#1D4ED8"))
+				})
+			})
 		}
 
 		// 5. 底部信息与检查更新
@@ -608,6 +658,8 @@ func (a *application) drawSidebar(c *ui.Context, t *ui.Theme) {
 			footerNote := "BGGo Desktop · 已是最新版"
 			if a.tab == "online" {
 				footerNote = "BGGo Desktop · 已连接微软官方CDN"
+			} else if a.tab == "plugins" {
+				footerNote = "BGGo Desktop · 插件运行在独立受限环境"
 			}
 			ui.Row(c).Justify(ui.Center).FillWidth().Children(func() {
 				ui.Text(c, footerNote).FontSize(11).TextColor(ui.Hex("#94A3B8"))
@@ -618,7 +670,9 @@ func (a *application) drawSidebar(c *ui.Context, t *ui.Theme) {
 
 // drawMainArea 绘制右侧主区域
 func (a *application) drawMainArea(c *ui.Context, t *ui.Theme) {
-	if a.tab == "online" {
+	if a.tab == "plugins" {
+		a.drawPluginManager(c, t)
+	} else if a.tab == "online" {
 		a.drawOnlineMain(c, t)
 	} else {
 		a.drawLocalMain(c, t)
@@ -658,9 +712,17 @@ func (a *application) drawOnlineMain(c *ui.Context, t *ui.Theme) {
 				if catName == "" {
 					catName = "必应每日精选"
 				}
-				sourceText := "微软必应官方精选 · 每日自动同步 · 4K 超高清原图直连"
-				if a.selectedCategory.Source == "360" {
-					sourceText = "360壁纸库精选 · 国内 CDN 极速直连 · 高清多分辨率适配"
+				sourceText := a.selectedCategory.Description
+				if sourceText == "" {
+					// Compatibility for callers that still construct the legacy
+					// Category shape without plugin-provided presentation metadata.
+					if a.selectedCategory.Source == "bing" {
+						sourceText = "微软必应官方精选 · 每日自动同步 · 4K 超高清原图直连"
+					} else if a.selectedCategory.Source == "360" {
+						sourceText = "360壁纸库精选 · 国内 CDN 极速直连 · 高清多分辨率适配"
+					} else {
+						sourceText = "壁纸插件源 · 由插件提供分类、列表和图片地址"
+					}
 				}
 				ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
 					if a.onlineView == "preview" {
@@ -1094,10 +1156,7 @@ func (a *application) drawOnlineBottomBar(c *ui.Context, t *ui.Theme) {
 
 	ui.Row(c).AlignItems(ui.Center).Gap(10).FillWidth().Children(func() {
 		// 左侧：状态圆点与当前状态
-		statusMsg := fmt.Sprintf("已拉取必应今日精选 · 共 %d 张壁纸", len(a.wallpapers))
-		if a.selectedCategory.Source == "360" {
-			statusMsg = fmt.Sprintf("已拉取360壁纸 · 共 %d 张壁纸", len(a.wallpapers))
-		}
+		statusMsg := fmt.Sprintf("已拉取 %s · 共 %d 张壁纸", a.selectedCategory.Name, len(a.wallpapers))
 		if a.status != "" && (a.error || a.busy) {
 			statusMsg = a.status
 		}
@@ -1117,15 +1176,26 @@ func (a *application) drawOnlineBottomBar(c *ui.Context, t *ui.Theme) {
 		ui.Spacer(c)
 
 		// 右侧：分页器群 (Pagination Cluster)
-		totalPages := 3
-		if a.selectedCategory.Source == "360" {
-			totalPages = 10
-		} else if a.selectedCategory.Source == "bing" {
-			totalPages = 1
-		}
 		currentPage := a.onlinePage
 		if currentPage < 1 {
 			currentPage = 1
+		}
+		pageSize := 18
+		totalPages := 0
+		if a.onlineTotal > 0 {
+			totalPages = (a.onlineTotal + pageSize - 1) / pageSize
+		}
+		if totalPages == 0 {
+			// Legacy callers may render a category before its first page has
+			// returned; retain the old preview text until plugin metadata arrives.
+			switch a.selectedCategory.Source {
+			case "bing":
+				totalPages = 1
+			case "360":
+				totalPages = 10
+			default:
+				totalPages = 3
+			}
 		}
 
 		ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() {
@@ -1142,17 +1212,21 @@ func (a *application) drawOnlineBottomBar(c *ui.Context, t *ui.Theme) {
 			}
 
 			ui.Box(c).Padding(0, 8).Children(func() {
-				ui.Text(c, fmt.Sprintf("第 %d / %d 页", currentPage, totalPages)).FontSize(11).Bold().TextColor(ui.Hex("#1E293B"))
+				pageLabel := fmt.Sprintf("第 %d 页", currentPage)
+				if totalPages > 0 {
+					pageLabel = fmt.Sprintf("第 %d / %d 页", currentPage, totalPages)
+				}
+				ui.Text(c, pageLabel).FontSize(11).Bold().TextColor(ui.Hex("#1E293B"))
 			})
 
-			nextBtn := ui.ButtonBase(c.Key("page-next")).Height(30).Padding(0, 10).Radius(6).Background(ui.Hex("#FFFFFF")).Border(1, ui.Hex("#E2E8F0")).Disabled(currentPage >= totalPages || a.loadingOnline)
+			nextBtn := ui.ButtonBase(c.Key("page-next")).Height(30).Padding(0, 10).Radius(6).Background(ui.Hex("#FFFFFF")).Border(1, ui.Hex("#E2E8F0")).Disabled(!a.onlineMore || a.loadingOnline)
 			nextBtn.Children(func() {
 				ui.Row(c).AlignItems(ui.Center).Gap(4).Children(func() {
 					ui.Text(c, "下一页 ▶").FontSize(11).TextColor(ui.Hex("#334155"))
 					ui.Icon(c, icons.ChevronRight).Size(11, 11).TextColor(ui.Hex("#334155"))
 				})
 			})
-			if nextBtn.Clicked() && currentPage < totalPages {
+			if nextBtn.Clicked() && a.onlineMore {
 				a.onlinePage++
 				a.loadOnlineWallpapers(a.selectedCategory, a.onlinePage)
 			}
@@ -1226,6 +1300,10 @@ func wallpaperSpec(path string, bmp *ui.Bitmap) string {
 }
 
 func categoryBadge(cat online.Category) string {
+	if cat.Badge != "" {
+		return cat.Badge
+	}
+	// Keep the old display for legacy categories created by older callers.
 	if cat.Source == "bing" {
 		return "8"
 	}
@@ -1469,10 +1547,7 @@ func (a *application) loadOnlineWallpapers(cat online.Category, page int) {
 	})
 	go func() {
 		pageSize := 18
-		if cat.Source == "bing" {
-			pageSize = 8
-		}
-		items, err := a.onlineSvc.GetWallpapers(context.Background(), cat, page, pageSize)
+		result, err := a.onlineSvc.GetWallpaperPage(context.Background(), cat, page, pageSize)
 		a.update(func() {
 			a.loadingOnline = false
 			if err != nil {
@@ -1480,9 +1555,11 @@ func (a *application) loadOnlineWallpapers(cat online.Category, page int) {
 				a.error = true
 				return
 			}
-			a.wallpapers = items
-			if len(items) > 0 {
-				a.status = fmt.Sprintf("%s · 第 %d 页，共加载 %d 张", cat.Name, page, len(items))
+			a.wallpapers = result.Items
+			a.onlineMore = result.More
+			a.onlineTotal = result.Total
+			if len(result.Items) > 0 {
+				a.status = fmt.Sprintf("%s · 第 %d 页，共加载 %d 张", cat.Name, page, len(result.Items))
 			} else {
 				a.status = "当前分类暂无壁纸"
 			}
@@ -2023,7 +2100,17 @@ func (a *application) runAutoBingCheck() {
 	if a.onlineSvc == nil {
 		return
 	}
-	items, err := a.onlineSvc.Bing.Fetch(context.Background(), "bing_daily", 1, 1)
+	var items []online.WallpaperItem
+	var err error
+	if provider, ok := a.onlineSvc.Provider("bing"); ok {
+		if pluginProvider, ok := provider.(*online.PluginProvider); ok {
+			items, err = pluginProvider.Daily(context.Background())
+		} else if a.onlineSvc.Bing != nil {
+			items, err = a.onlineSvc.Bing.Fetch(context.Background(), "bing_daily", 1, 1)
+		}
+	} else {
+		err = fmt.Errorf("未找到 Bing 壁纸源")
+	}
 	if err != nil || len(items) == 0 {
 		return
 	}
@@ -2067,7 +2154,17 @@ func (a *application) applyRandomWallpaper() {
 		return
 	}
 	go func() {
-		items, err := a.onlineSvc.Qihoo.Fetch(context.Background(), "9", 1, 30)
+		var items []online.WallpaperItem
+		var err error
+		if provider, ok := a.onlineSvc.Provider("360"); ok {
+			if pluginProvider, ok := provider.(*online.PluginProvider); ok {
+				items, err = pluginProvider.Random(context.Background(), "9", 30)
+			} else if a.onlineSvc.Qihoo != nil {
+				items, err = a.onlineSvc.Qihoo.Fetch(context.Background(), "9", 1, 30)
+			}
+		} else {
+			err = fmt.Errorf("未找到随机壁纸源")
+		}
 		if err != nil || len(items) == 0 {
 			return
 		}
@@ -2244,6 +2341,9 @@ func main() {
 		})
 
 		mygo.App.OnWillQuit(func(e *mygo.QuitEvent) {
+			for _, source := range a.plugins {
+				source.Close()
+			}
 			if a.tray != nil {
 				a.tray.Destroy()
 			}

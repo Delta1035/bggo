@@ -2,6 +2,7 @@ package online
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -142,5 +143,27 @@ func TestServiceIntegration(t *testing.T) {
 	}
 	if atomic.LoadInt32(&thumbHits) != 1 {
 		t.Errorf("expected still 1 thumb hit on cache hit, got %d", atomic.LoadInt32(&thumbHits))
+	}
+}
+
+func TestSourceRegistryRoutesProviders(t *testing.T) {
+	registry := NewSourceRegistry()
+	first := NewBingProvider()
+	second := NewQihooProvider()
+
+	if err := registry.Register(first); err != nil {
+		t.Fatalf("Register(first) failed: %v", err)
+	}
+	if err := registry.Register(second); err != nil {
+		t.Fatalf("Register(second) failed: %v", err)
+	}
+	if got, ok := registry.Get("bing"); !ok || got != first {
+		t.Fatalf("Get(bing) = %v, %v; want first provider", got, ok)
+	}
+	if got := registry.Sources(); len(got) != 2 || got[0] != first || got[1] != second {
+		t.Fatalf("Sources() = %#v; want registration order", got)
+	}
+	if err := registry.Register(NewBingProvider()); !errors.Is(err, ErrDuplicateProvider) {
+		t.Fatalf("duplicate Register() error = %v, want ErrDuplicateProvider", err)
 	}
 }

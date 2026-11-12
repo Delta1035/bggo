@@ -1,0 +1,12 @@
+{
+  "type": "bggo-wallpaper",
+  "apiVersion": 1,
+  "id": "bing",
+  "name": "必应每日精选",
+  "version": "1.0.0",
+  "minAppVersion": "0.2.10",
+  "main": "index.js",
+  "permissions": {
+    "network": ["cn.bing.com"]
+  }
+}

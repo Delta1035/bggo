@@ -7,6 +7,8 @@ type WallpaperItem struct {
 	Author     string `json:"author,omitempty"`
 	ThumbURL   string `json:"thumb_url"`
 	FullURL    string `json:"full_url"`
+	Width      int    `json:"width,omitempty"`
+	Height     int    `json:"height,omitempty"`
 	Resolution string `json:"resolution,omitempty"`
 	Source     string `json:"source"` // "bing" | "360"
 	Copyright  string `json:"copyright,omitempty"`
@@ -14,7 +16,9 @@ type WallpaperItem struct {
 
 // Category 代表在线壁纸的分类
 type Category struct {
-	ID     string `json:"id"`
-	Name   string `json:"name"`
-	Source string `json:"source"` // "bing" | "360"
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Source      string `json:"source"` // stable provider ID
+	Description string `json:"description,omitempty"`
+	Badge       string `json:"badge,omitempty"`
 }

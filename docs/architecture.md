@@ -8,7 +8,10 @@ bggo/
 ├── internal/library/               # 最近使用记录
 ├── internal/wallpaper/             # 参数校验和系统适配
 ├── extensions/bggo-vscode/         # 独立 VS Code 扩展
-├── resources/                      # 应用图标源文件
+├── resources/                      # 应用图标与内置壁纸插件
+│   └── plugins/                    # Bing、360 的 plugin.json 与 JS 入口
+├── internal/plugin/                # MoeJS 插件运行时与宿主 API
+├── internal/online/                # 源注册中心、provider 与缓存
 ├── tools/genicon/                  # 图标生成工具
 ├── mygo.json                       # 桌面应用元数据
 └── docs/                            # 项目文档
@@ -47,6 +50,21 @@ bggo/
 ### 本地状态
 
 `internal/library.Store` 使用 `os.UserConfigDir()` 定位 `bggo/library.json`，文件权限为 `0600`。写入采用同目录临时文件、同步和原子替换；读取到损坏 JSON 时会先将原文件改名为带时间戳的 `.corrupt-*` 备份，再以空状态继续运行。
+
+## 在线壁纸插件
+
+在线源统一通过 `internal/online.SourceRegistry` 注册。Bing 和 360 的兼容 Go provider 仍保留为回退实现，启动时优先加载 `resources/plugins` 中的嵌入式 JS 插件；插件编译、注册或运行失败时，应用继续使用对应 Go provider。
+
+```text
+resources/plugins/<id>
+  → plugin.LoadSource
+  → MoeJS 独立 runtime
+  → online.PluginProvider
+  → SourceRegistry
+  → UI / 下载缓存 / 系统壁纸
+```
+
+插件只能通过 manifest 声明的网络主机使用 `host.fetch`。插件返回的原图和缩略图 URL 在进入宿主下载流程前会再次校验协议和声明主机，插件包保存在 `bggo/plugins/<id>`，设置与存储分别保存到 `bggo/plugin-data/<id>/settings.json` 和 `storage.json`。每个插件按需启动，调用超时或关闭后下一次调用会创建新的 runtime。
 
 ## VS Code 扩展
 
@@ -87,3 +105,4 @@ bggo/
 - 配置已采用原子写入并处理损坏文件恢复；并发写入仍需进一步验证。
 - 系统适配器改为可注入接口，以便覆盖 Linux 命令选择和 Windows 调用测试。
 - 为 VS Code 权限定位、URI 迁移和配置合并补单元测试。
+- 外部插件目录扫描、安装、更新和权限确认仍未开放；当前只发布内置插件，并保留 Go fallback。

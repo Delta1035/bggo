@@ -14,10 +14,11 @@ import (
 
 // Service 整合所有在线壁纸源与下载缓存的服务
 type Service struct {
-	Bing   *BingProvider
-	Qihoo  *QihooProvider
-	Cache  *CacheManager
-	Client *http.Client
+	Bing     *BingProvider
+	Qihoo    *QihooProvider
+	Cache    *CacheManager
+	Client   *http.Client
+	Registry *SourceRegistry
 
 	categoriesMu sync.RWMutex
 	categories   []Category
@@ -36,12 +37,67 @@ func NewService(cacheDir string) (*Service, error) {
 	qihoo := NewQihooProvider()
 	qihoo.Client = client
 
+	registry := NewSourceRegistry()
+	if err := registry.Register(bing); err != nil {
+		return nil, err
+	}
+	if err := registry.Register(qihoo); err != nil {
+		return nil, err
+	}
+
 	return &Service{
-		Bing:   bing,
-		Qihoo:  qihoo,
-		Cache:  cache,
-		Client: client,
+		Bing:     bing,
+		Qihoo:    qihoo,
+		Cache:    cache,
+		Client:   client,
+		Registry: registry,
 	}, nil
+}
+
+// RegisterProvider adds a built-in or plugin-backed source and invalidates the
+// aggregated category cache so the next read sees it.
+func (s *Service) RegisterProvider(provider Provider) error {
+	if s.Registry == nil {
+		s.Registry = NewSourceRegistry()
+	}
+	if err := s.Registry.Register(provider); err != nil {
+		return err
+	}
+	s.categoriesMu.Lock()
+	s.categories = nil
+	s.categoriesMu.Unlock()
+	return nil
+}
+
+// ReplaceProvider installs a provider with the same ID over the current
+// implementation, retaining the original source ordering.
+func (s *Service) ReplaceProvider(provider Provider) error {
+	if s.Registry == nil {
+		s.Registry = NewSourceRegistry()
+	}
+	if err := s.Registry.Replace(provider); err != nil {
+		return err
+	}
+	s.categoriesMu.Lock()
+	s.categories = nil
+	s.categoriesMu.Unlock()
+	return nil
+}
+
+// Provider returns the source registered under name.
+func (s *Service) Provider(name string) (Provider, bool) {
+	return s.providersByID().Get(name)
+}
+
+// RemoveProvider unregisters a source and invalidates the category cache.
+func (s *Service) RemoveProvider(name string) bool {
+	if s.Registry == nil || !s.Registry.Remove(name) {
+		return false
+	}
+	s.categoriesMu.Lock()
+	s.categories = nil
+	s.categoriesMu.Unlock()
+	return true
 }
 
 // GetCategories 获取合并后的所有可用分类
@@ -56,19 +112,20 @@ func (s *Service) GetCategories(ctx context.Context) ([]Category, error) {
 	s.categoriesMu.RUnlock()
 
 	var result []Category
-
-	// 1. Bing 每日壁纸
-	bingCats, err := s.Bing.Categories(ctx)
-	if err == nil {
-		result = append(result, bingCats...)
+	var lastErr error
+	for _, provider := range s.providers() {
+		categories, err := provider.Categories(ctx)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		result = append(result, categories...)
 	}
-
-	// 2. 360 分类壁纸
-	qihooCats, err := s.Qihoo.Categories(ctx)
-	if err == nil {
-		result = append(result, qihooCats...)
-	} else if len(result) == 0 {
-		return nil, fmt.Errorf("无法加载任何壁纸分类: %w", err)
+	if len(result) == 0 {
+		if lastErr == nil {
+			lastErr = fmt.Errorf("没有注册壁纸源")
+		}
+		return nil, fmt.Errorf("无法加载任何壁纸分类: %w", lastErr)
 	}
 
 	s.categoriesMu.Lock()
@@ -80,15 +137,48 @@ func (s *Service) GetCategories(ctx context.Context) ([]Category, error) {
 
 // GetWallpapers 根据分类拉取壁纸列表
 func (s *Service) GetWallpapers(ctx context.Context, category Category, page, pageSize int) ([]WallpaperItem, error) {
-	switch category.Source {
-	case "bing":
-		return s.Bing.Fetch(ctx, category.ID, page, pageSize)
-	case "360":
-		return s.Qihoo.Fetch(ctx, category.ID, page, pageSize)
-	default:
-		// 默认回退到 Bing
-		return s.Bing.Fetch(ctx, category.ID, page, pageSize)
+	result, err := s.GetWallpaperPage(ctx, category, page, pageSize)
+	if err != nil {
+		return nil, err
 	}
+	return result.Items, nil
+}
+
+// GetWallpaperPage returns items and source-provided pagination metadata.
+func (s *Service) GetWallpaperPage(ctx context.Context, category Category, page, pageSize int) (WallpaperPage, error) {
+	if provider, ok := s.providersByID().Get(category.Source); ok {
+		if paged, ok := provider.(PageProvider); ok {
+			return paged.FetchPage(ctx, category.ID, page, pageSize)
+		}
+		items, err := provider.Fetch(ctx, category.ID, page, pageSize)
+		return WallpaperPage{Items: items, More: len(items) >= pageSize}, err
+	}
+	return WallpaperPage{}, fmt.Errorf("未找到壁纸源: %s", category.Source)
+}
+
+func (s *Service) providers() []Provider {
+	if s.Registry != nil {
+		return s.Registry.Sources()
+	}
+	var providers []Provider
+	if s.Bing != nil {
+		providers = append(providers, s.Bing)
+	}
+	if s.Qihoo != nil {
+		providers = append(providers, s.Qihoo)
+	}
+	return providers
+}
+
+func (s *Service) providersByID() *SourceRegistry {
+	if s.Registry != nil {
+		return s.Registry
+	}
+	registry := NewSourceRegistry()
+	for _, provider := range s.providers() {
+		_ = registry.Register(provider)
+	}
+	return registry
 }
 
 // DownloadWallpaper 下载高清原图并持久化保存到本地缓存
