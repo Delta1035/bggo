@@ -22,6 +22,7 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/plugins/updater/native"
 	"github.com/egoist/mygo/ui"
+	breeze "github.com/yldm-tech/mygo-breeze-ui/ui/breeze"
 )
 
 //go:embed resources/icon.png
@@ -72,8 +73,9 @@ type application struct {
 	recentBitmaps    map[string]*ui.Bitmap
 	thumbMu          sync.Mutex
 
-	tray *mygo.Tray
-	mu   sync.RWMutex
+	tray     *mygo.Tray
+	quitting bool
+	mu       sync.RWMutex
 }
 
 func newApplication() *application {
@@ -211,23 +213,83 @@ func (a *application) AutoBing() bool {
 }
 
 func (a *application) view(c *ui.Context) {
+	breeze.Use(c)
 	t := c.Theme()
 
-	// 最外层窗口容器：在 Frameless 模式下保持 1px 微边框和整体圆角
-	ui.Row(c).Fill().Background(t.Background).Border(1, t.Border).Children(func() {
-		// 1. macOS 风格左侧栏 (内含交通灯窗口控制与品牌信息)
-		a.drawSidebar(c, t)
-		// 2. 主内容区
-		a.drawMainArea(c, t)
+	// 最外层窗口容器：在 Frameless 自绘模式下保持 1px 微边框和微圆角
+	ui.Column(c).Fill().Background(t.Background).Border(1, t.Border).Children(func() {
+		// 1. 完全自绘的现代标题栏 (包含应用Logo、标题、版本胶囊、全宽拖拽区以及上一版标准最小化/最大化/关闭按钮)
+		a.drawTitleBar(c, t)
+
+		// 2. 窗口主体内容区 (侧边栏 + 主内容区)
+		ui.Row(c).Grow(1).FillWidth().Children(func() {
+			a.drawSidebar(c, t)
+			a.drawMainArea(c, t)
+		})
 	})
 }
 
-// drawSidebar 绘制左侧侧边栏 (符合 macOS 原型设计)
-func (a *application) drawSidebar(c *ui.Context, t *ui.Theme) {
-	ui.Column(c).Width(260).FillHeight().Padding(20, 16, 16, 16).Gap(14).Background(ui.Hex("#F5F6F8")).BorderWidth(0, 1, 0, 0).BorderColor(ui.Hex("#E5E7EB")).Children(func() {
-		// 1. macOS 窗口控制红黄绿三圆点 (顶部支持窗口拖拽)
-		ui.Row(c).Gap(7).AlignItems(ui.Center).DragWindow().Children(func() {
-			closeBtn := ui.ButtonBase(c.Key("win-dot-close")).Width(12).Height(12).Radius(6).Background(ui.Hex("#FF5F56")).Border(0.5, ui.Hex("#E0443E")).Tooltip("关闭")
+// drawTitleBar 绘制完全自绘的现代化全宽标题栏 (恢复上一版标准控制按钮)
+func (a *application) drawTitleBar(c *ui.Context, t *ui.Theme) {
+	// 标题栏：高 38px，包含拖拽区域，双击触发最大化/还原
+	ui.Row(c).Height(38).FillWidth().Background(ui.Hex("#FFFFFF")).BorderWidth(0, 0, 1, 0).BorderColor(ui.Hex("#E2E4E9")).AlignItems(ui.Center).DragWindow().Children(func() {
+		// 左侧应用品牌徽标 (图标 + 标题 + 版本胶囊)
+		ui.Row(c).AlignItems(ui.Center).Gap(8).Padding(0, 14).Children(func() {
+			ui.Box(c).Width(22).Height(22).Radius(6).Background(ui.Hex("#3B82F6")).Center().Children(func() {
+				ui.Icon(c, icons.Image).Size(13, 13).TextColor(ui.Hex("#FFFFFF"))
+			})
+			ui.Text(c, "BGGo 壁纸").FontSize(13).Bold().TextColor(ui.Hex("#0F172A"))
+			ui.Box(c).Padding(2, 7).Radius(10).Background(ui.Hex("#F1F5F9")).Border(1, ui.Hex("#E2E4E9")).Center().Children(func() {
+				ui.Text(c, AppVersion).FontSize(10).Bold().TextColor(ui.Hex("#64748B"))
+			})
+		})
+
+		// 中间全宽留白拖拽区
+		ui.Spacer(c)
+
+		// 右侧自绘窗口控制按钮群 (最小化、最大化/还原、关闭)
+		ui.Row(c).Height(38).AlignItems(ui.Center).Children(func() {
+			// 1. 最小化按钮
+			minBtn := ui.ButtonBase(c.Key("win-min")).Width(44).Height(38).Tooltip("最小化")
+			if minBtn.Hovered() {
+				minBtn.Background(ui.Hex("#F1F5F9"))
+			}
+			minBtn.Center().Children(func() {
+				ui.Text(c, "—").FontSize(11).TextColor(ui.Hex("#64748B"))
+			})
+			if minBtn.Clicked() && a.window != nil {
+				a.window.Minimize()
+			}
+
+			// 2. 最大化 / 还原按钮
+			isMax := a.window != nil && a.window.IsMaximized()
+			maxIcon := "□"
+			maxTooltip := "最大化"
+			if isMax {
+				maxIcon = "❐"
+				maxTooltip = "还原"
+			}
+			maxBtn := ui.ButtonBase(c.Key("win-max")).Width(44).Height(38).Tooltip(maxTooltip)
+			if maxBtn.Hovered() {
+				maxBtn.Background(ui.Hex("#F1F5F9"))
+			}
+			maxBtn.Center().Children(func() {
+				ui.Text(c, maxIcon).FontSize(12).TextColor(ui.Hex("#64748B"))
+			})
+			if maxBtn.Clicked() && a.window != nil {
+				a.window.ToggleMaximize()
+			}
+
+			// 3. 关闭按钮 (Hover 时呈现红色背景与白色文字)
+			closeBtn := ui.ButtonBase(c.Key("win-close")).Width(44).Height(38).Tooltip("关闭")
+			closeTextColor := ui.Hex("#64748B")
+			if closeBtn.Hovered() {
+				closeBtn.Background(ui.Hex("#EF4444"))
+				closeTextColor = ui.Hex("#FFFFFF")
+			}
+			closeBtn.Center().Children(func() {
+				ui.Text(c, "✕").FontSize(11).TextColor(closeTextColor)
+			})
 			if closeBtn.Clicked() && a.window != nil {
 				if a.tray != nil {
 					a.window.Hide()
@@ -235,32 +297,14 @@ func (a *application) drawSidebar(c *ui.Context, t *ui.Theme) {
 					a.window.Close()
 				}
 			}
-
-			minBtn := ui.ButtonBase(c.Key("win-dot-min")).Width(12).Height(12).Radius(6).Background(ui.Hex("#FFBD2E")).Border(0.5, ui.Hex("#DEA123")).Tooltip("最小化")
-			if minBtn.Clicked() && a.window != nil {
-				a.window.Minimize()
-			}
-
-			maxBtn := ui.ButtonBase(c.Key("win-dot-max")).Width(12).Height(12).Radius(6).Background(ui.Hex("#27C93F")).Border(0.5, ui.Hex("#1AAB29")).Tooltip("最大化")
-			if maxBtn.Clicked() && a.window != nil {
-				a.window.ToggleMaximize()
-			}
 		})
+	})
+}
 
-		// 2. 应用品牌 Logo 与版本胶囊 (App Brand Row)
-		ui.Row(c).Justify(ui.SpaceBetween).AlignItems(ui.Center).FillWidth().Children(func() {
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.Box(c).Width(26).Height(26).Radius(6).Background(ui.Hex("#3B82F6")).Center().Children(func() {
-					ui.Icon(c, icons.Image).Size(15, 15).TextColor(ui.Hex("#FFFFFF"))
-				})
-				ui.Text(c, "BGGo").FontSize(18).Bold().TextColor(ui.Hex("#0F172A"))
-			})
-			ui.Box(c).Padding(2, 7).Radius(10).Background(ui.Hex("#E2E8F0")).Center().Children(func() {
-				ui.Text(c, AppVersion).FontSize(11).Bold().TextColor(ui.Hex("#475569"))
-			})
-		})
-
-		// 3. 顶部模式切换胶囊 [ 本地壁纸 | 在线图库 ]
+// drawSidebar 绘制左侧侧边栏 (符合 Breeze UI 设计)
+func (a *application) drawSidebar(c *ui.Context, t *ui.Theme) {
+	ui.Column(c).Width(260).FillHeight().Padding(16, 16, 16, 16).Gap(14).Background(ui.Hex("#F8FAFC")).BorderWidth(0, 1, 0, 0).BorderColor(ui.Hex("#E2E4E9")).Children(func() {
+		// 1. 顶部模式切换胶囊 [ 本地壁纸 | 在线图库 ]
 		ui.Box(c).Radius(8).Padding(3).Background(ui.Hex("#E5E7EB")).Height(34).FillWidth().Children(func() {
 			ui.Row(c).Gap(3).Fill().Children(func() {
 				isLocal := a.tab == "local"
@@ -622,11 +666,11 @@ func (a *application) drawOnlineMain(c *ui.Context, t *ui.Theme) {
 			})
 
 			ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
-				// 搜索框 (原型图宽 180px)
-				ui.SearchField(c, &a.searchKeyword).Placeholder("搜索壁纸关键词…").Width(180).Height(32)
+				// 搜索框 (Breeze UI 风格，宽 180px)
+				breeze.SearchField(c, &a.searchKeyword).Placeholder("搜索壁纸关键词…").Width(180).Height(32)
 
-				// 筛选下拉 (原型图右上角设计)
-				ui.Select(c, &a.filterOption, []string{"精选推荐", "最新壁纸", "最高人气"}).Height(32)
+				// 筛选下拉 (Breeze UI 风格)
+				breeze.Select(c, &a.filterOption, []string{"精选推荐", "最新壁纸", "最高人气"}).Height(32)
 
 				// 适应模式选择器 (在大图预览时显示)
 				if a.onlineView == "preview" {
@@ -1986,7 +2030,15 @@ func (a *application) initTray() {
 		mygo.Separator(),
 		{
 			Label: "退出 BGGo",
+			Role:  mygo.RoleQuit,
 			Click: func(item *mygo.MenuItem, win *mygo.Window) {
+				a.quitting = true
+				if a.tray != nil {
+					a.tray.Destroy()
+				}
+				if a.window != nil {
+					a.window.Close()
+				}
 				mygo.App.Quit()
 			},
 		},
@@ -2053,6 +2105,10 @@ func categoryIcon(name string) string {
 	}
 }
 
+func shouldPreventClose(quitting bool, hasTray bool) bool {
+	return !quitting && hasTray
+}
+
 func main() {
 	if mygo.Updater.Enabled() {
 		mygo.Use(native.Plugin)
@@ -2102,10 +2158,20 @@ func main() {
 			}
 		})
 
+		mygo.App.OnBeforeQuit(func(e *mygo.QuitEvent) {
+			a.quitting = true
+		})
+
 		a.window.OnClose(func(e *mygo.CloseEvent) {
-			if a.tray != nil {
+			if shouldPreventClose(a.quitting, a.tray != nil) {
 				e.PreventDefault()
 				a.window.Hide()
+			}
+		})
+
+		mygo.App.OnWillQuit(func(e *mygo.QuitEvent) {
+			if a.tray != nil {
+				a.tray.Destroy()
 			}
 		})
 		a.initTray()

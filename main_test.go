@@ -1001,6 +1001,9 @@ func TestBottomBarStandaloneMapVSCode(t *testing.T) {
 	if !a.busy {
 		t.Errorf("expected busy=true while applying to VS Code")
 	}
+	for i := 0; i < 50 && a.busy; i++ {
+		time.Sleep(10 * time.Millisecond)
+	}
 	_ = called
 }
 
@@ -1056,5 +1059,45 @@ func TestOnlineBottomBar_PreviewModeClosureAndBingPagination(t *testing.T) {
 	}
 	if !tt.HasText("映射到 VS Code") {
 		t.Errorf("expected '映射到 VS Code' button in online preview mode bottom bar")
+	}
+}
+
+func TestTitleBarButtonsAndNoTrafficLights(t *testing.T) {
+	a := newApplication()
+	tt := ui.NewTester(a.view, 1000, 680)
+
+	// 1. 验证顶置全宽自绘标题栏及品牌文字
+	if !tt.HasText("BGGo 壁纸") {
+		t.Errorf("missing titlebar brand text 'BGGo 壁纸'")
+	}
+	if !tt.HasText(AppVersion) {
+		t.Errorf("missing version badge %q in titlebar", AppVersion)
+	}
+
+	// 2. 验证恢复上一版的窗口控制按钮：最小化、最大化、关闭
+	for _, btnIcon := range []string{"—", "□", "✕"} {
+		if !tt.HasText(btnIcon) {
+			t.Errorf("missing window control button %q in titlebar", btnIcon)
+		}
+	}
+}
+
+func TestTrayQuitBehavior(t *testing.T) {
+	// 1. 正常运行状态且有系统托盘：点击关闭应拦截窗口并隐藏到托盘
+	if !shouldPreventClose(false, true) {
+		t.Errorf("expected shouldPreventClose(false, true) = true to keep app running in tray")
+	}
+
+	// 2. 无系统托盘时：不拦截，直接关闭窗口
+	if shouldPreventClose(false, false) {
+		t.Errorf("expected shouldPreventClose(false, false) = false when no tray exists")
+	}
+
+	// 3. 用户在托盘菜单点击“退出 BGGo” (quitting == true)：必须放行关闭，不得被 PreventDefault 阻断退出
+	if shouldPreventClose(true, true) {
+		t.Errorf("expected shouldPreventClose(true, true) = false when quitting from tray")
+	}
+	if shouldPreventClose(true, false) {
+		t.Errorf("expected shouldPreventClose(true, false) = false when quitting")
 	}
 }
