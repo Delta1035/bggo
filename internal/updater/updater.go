@@ -222,7 +222,7 @@ func (s *Service) CheckUpdate(ctx context.Context, currentVersion, target string
 	}, nil
 }
 
-// IsWritableInstall checks if the running app binary is in a directory writable by the current user.
+// IsWritableInstall checks if the running app directory is writable by the current user.
 func (s *Service) IsWritableInstall() bool {
 	exe, err := os.Executable()
 	if err != nil {
@@ -232,7 +232,7 @@ func (s *Service) IsWritableInstall() bool {
 		exe = real
 	}
 	dir := filepath.Dir(exe)
-	probe, err := os.MkdirTemp(filepath.Dir(dir), ".bggo-update-probe-")
+	probe, err := os.MkdirTemp(dir, ".bggo-update-probe-")
 	if err != nil {
 		return false
 	}
@@ -315,7 +315,11 @@ func (s *Service) DownloadFile(ctx context.Context, fileURL, destPath string, pr
 	return nil
 }
 
-// InstallDebPackage installs a deb package using pkexec or fallback to xdg-open.
+// ErrInstallPending means a graphical installer was opened, but its completion
+// cannot be observed by the application.
+var ErrInstallPending = errors.New("图形安装器已打开，安装状态待确认")
+
+// InstallDebPackage installs a deb package using pkexec or falls back to xdg-open.
 func (s *Service) InstallDebPackage(debPath string) error {
 	if _, err := os.Stat(debPath); err != nil {
 		return fmt.Errorf("更新包不存在: %w", err)
@@ -335,7 +339,7 @@ func (s *Service) InstallDebPackage(debPath string) error {
 	// Fallback to xdg-open for GUI installer
 	if xdg, err := exec.LookPath("xdg-open"); err == nil && xdg != "" {
 		if err := exec.Command(xdg, debPath).Start(); err == nil {
-			return nil
+			return fmt.Errorf("%w: %s", ErrInstallPending, debPath)
 		}
 	}
 

@@ -1,9 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	_ "embed"
+	"errors"
 	"fmt"
+	"image"
 	"log"
 	"os"
 	"path/filepath"
@@ -11,6 +14,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"bggo/internal/icons"
@@ -23,12 +27,19 @@ import (
 	"github.com/egoist/mygo/plugins/updater/native"
 	"github.com/egoist/mygo/ui"
 	breeze "github.com/yldm-tech/mygo-breeze-ui/ui/breeze"
+	_ "golang.org/x/image/bmp"
+	_ "golang.org/x/image/webp"
 )
 
 //go:embed resources/icon.png
 var appIconBytes []byte
 
 const AppVersion = "v0.2.9"
+
+const (
+	maxWallpaperFileBytes int64 = 64 << 20
+	maxWallpaperPixels    int64 = 40_000_000
+)
 
 type wallpaperSetter interface {
 	Set(path string) error
@@ -72,6 +83,7 @@ type application struct {
 	thumbLoading     map[string]bool
 	recentBitmaps    map[string]*ui.Bitmap
 	thumbMu          sync.Mutex
+	loadSeq          atomic.Uint64
 
 	tray     *mygo.Tray
 	quitting bool
@@ -112,6 +124,9 @@ func newApplication() *application {
 	}
 	a.syncVSCode = state.SyncVSCode
 	a.autoBing = state.AutoBing
+	if state.Notice != "" {
+		a.setStatus(state.Notice, true)
+	}
 	for _, path := range state.Recent {
 		if _, err := os.Stat(path); err == nil {
 			a.recent = append(a.recent, path)
@@ -1248,27 +1263,67 @@ func (a *application) chooseWallpaper() {
 			return
 		}
 		if len(paths) > 0 {
-			a.update(func() { a.loadWallpaper(paths[0]) })
+			a.loadWallpaper(paths[0])
 		}
 	}()
 }
 
 func (a *application) loadWallpaper(path string) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		a.setStatus("读取图片失败: "+err.Error(), true)
-		return
+	seq := a.loadSeq.Add(1)
+	a.update(func() {
+		a.busy = true
+		a.setStatus("正在读取图片…", false)
+	})
+	go func() {
+		data, err := os.ReadFile(path)
+		readErr := err
+		if err == nil {
+			preview, decodeErr := decodeWallpaper(data)
+			err = decodeErr
+			if err == nil {
+				a.update(func() {
+					if seq != a.loadSeq.Load() {
+						return
+					}
+					a.selected, a.preview = path, preview
+					a.thumbMu.Lock()
+					a.recentBitmaps[path] = preview
+					a.thumbMu.Unlock()
+					a.busy = false
+					a.setStatus("准备应用到桌面", false)
+				})
+				return
+			}
+		}
+		a.update(func() {
+			if seq != a.loadSeq.Load() {
+				return
+			}
+			a.busy = false
+			if readErr != nil {
+				a.setStatus("读取图片失败: "+readErr.Error(), true)
+			} else if err != nil {
+				a.setStatus("无法预览这张图片: "+err.Error(), true)
+			}
+		})
+	}()
+}
+
+func decodeWallpaper(data []byte) (*ui.Bitmap, error) {
+	if int64(len(data)) > maxWallpaperFileBytes {
+		return nil, fmt.Errorf("图片文件过大，不能超过 %d MB", maxWallpaperFileBytes>>20)
 	}
-	preview, err := ui.DecodeBitmap(data)
+	config, _, err := image.DecodeConfig(bytes.NewReader(data))
 	if err != nil {
-		a.setStatus("无法预览这张图片: "+err.Error(), true)
-		return
+		return nil, fmt.Errorf("读取图片尺寸失败: %w", err)
 	}
-	a.selected, a.preview = path, preview
-	a.thumbMu.Lock()
-	a.recentBitmaps[path] = preview
-	a.thumbMu.Unlock()
-	a.setStatus("准备应用到桌面", false)
+	if config.Width <= 0 || config.Height <= 0 {
+		return nil, fmt.Errorf("图片尺寸无效")
+	}
+	if int64(config.Width)*int64(config.Height) > maxWallpaperPixels {
+		return nil, fmt.Errorf("图片像素过多，不能超过 %d 像素", maxWallpaperPixels)
+	}
+	return ui.DecodeBitmap(data)
 }
 
 func (a *application) toggleSyncVSCode() {
@@ -1460,7 +1515,7 @@ func (a *application) applyOnlineWallpaper(item online.WallpaperItem) {
 
 		var bmp *ui.Bitmap
 		if data, readErr := os.ReadFile(localPath); readErr == nil {
-			bmp, _ = ui.DecodeBitmap(data)
+			bmp, _ = decodeWallpaper(data)
 		}
 
 		setErr := a.setter.Set(localPath)
@@ -1529,7 +1584,7 @@ func (a *application) previewOnlineWallpaper(item online.WallpaperItem) {
 		}
 		var bmp *ui.Bitmap
 		if data, readErr := os.ReadFile(localPath); readErr == nil {
-			bmp, _ = ui.DecodeBitmap(data)
+			bmp, _ = decodeWallpaper(data)
 		}
 		a.update(func() {
 			a.busy = false
@@ -1559,7 +1614,7 @@ func (a *application) requestThumbnail(item online.WallpaperItem) {
 	go func(item online.WallpaperItem) {
 		data, err := a.onlineSvc.FetchThumbnailBytes(context.Background(), item.ThumbURL)
 		if err == nil {
-			bmp, err := ui.DecodeBitmap(data)
+			bmp, err := decodeWallpaper(data)
 			if err == nil {
 				a.update(func() {
 					a.thumbMu.Lock()
@@ -1580,6 +1635,23 @@ func (a *application) requestThumbnail(item online.WallpaperItem) {
 
 func (a *application) setStatus(message string, isError bool) {
 	a.status, a.error = message, isError
+}
+
+// prepareForRelaunch prevents the tray close handler from hiding the window
+// while MyGo runs its normal quit-and-restart sequence.
+func (a *application) prepareForRelaunch() {
+	a.quitting = true
+	if a.tray != nil {
+		a.tray.Destroy()
+		a.tray = nil
+	}
+}
+
+func (a *application) relaunchAfterUpdate() {
+	mygo.RunOnMain(func() {
+		a.prepareForRelaunch()
+		mygo.App.Relaunch()
+	})
 }
 
 func (a *application) checkForUpdates() {
@@ -1707,16 +1779,26 @@ func (a *application) applyUpdate(res *updater.CheckResult) {
 
 		err = a.updaterSvc.InstallDebPackage(destFile)
 		if err != nil {
+			pending := errors.Is(err, updater.ErrInstallPending)
 			a.update(func() {
-				a.setStatus("自动安装未完成，已保存安装包", true)
+				if pending {
+					a.setStatus("系统安装器已打开，请完成安装后重新启动应用", false)
+				} else {
+					a.setStatus("自动安装未完成，已保存安装包", true)
+				}
 			})
 			if a.window != nil {
 				_, _ = mygo.Dialog.Message(mygo.MessageOptions{
-					Parent:  a.window,
-					Type:    mygo.MessageWarning,
-					Title:   "更新安装提示",
-					Message: "未能完成自动提权安装",
-					Detail:  fmt.Sprintf("更新包已成功下载至:\n%s\n\n您可以打开终端手动安装:\nsudo dpkg -i %s", destFile, destFile),
+					Parent: a.window,
+					Type:   mygo.MessageWarning,
+					Title:  "更新安装提示",
+					Message: func() string {
+						if pending {
+							return "系统安装器已打开，但 BGGo 无法确认安装是否完成"
+						}
+						return "未能完成自动提权安装"
+					}(),
+					Detail:  fmt.Sprintf("更新包已保存至:\n%s\n\n请完成系统安装器中的操作；若安装器未成功，可在终端执行:\nsudo dpkg -i %s\n\n安装完成后请重新启动 BGGo。", destFile, destFile),
 					Buttons: []string{"确定"},
 				})
 			}
@@ -1738,16 +1820,37 @@ func (a *application) applyUpdate(res *updater.CheckResult) {
 				DefaultButton: 0,
 			})
 			if successRes.Button == 0 {
-				mygo.App.Relaunch()
+				a.relaunchAfterUpdate()
 			}
 		}
 		return
 	}
 
-	// 便携版或具有写权限目录安装模式（下载 tar.gz 校验并提示重启）
-	archiveURL := res.Manifest.URL
-	destArchive := filepath.Join(os.TempDir(), filepath.Base(archiveURL))
-	err := a.updaterSvc.DownloadFile(ctx, archiveURL, destArchive, func(downloaded, total int64) {
+	// Writable portable installs use MyGo's installer so the signed archive is
+	// installed before Relaunch. Merely downloading an archive cannot update the
+	// running installation.
+	if !mygo.Updater.Enabled() {
+		a.update(func() {
+			a.setStatus("当前安装方式不支持自动更新，请从发布页下载安装包", true)
+		})
+		return
+	}
+
+	nativeUpdate, err := mygo.Updater.Check(ctx)
+	if err != nil {
+		a.update(func() {
+			a.setStatus("检查原生更新失败: "+err.Error(), true)
+		})
+		return
+	}
+	if nativeUpdate == nil {
+		a.update(func() {
+			a.setStatus("当前已是最新版本", false)
+		})
+		return
+	}
+
+	err = nativeUpdate.Install(ctx, func(downloaded, total int64) {
 		if total > 0 {
 			pct := int(downloaded * 100 / total)
 			a.update(func() {
@@ -1757,42 +1860,15 @@ func (a *application) applyUpdate(res *updater.CheckResult) {
 	})
 	if err != nil {
 		a.update(func() {
-			a.setStatus("下载更新包失败: "+err.Error(), true)
-		})
-		return
-	}
-
-	data, err := os.ReadFile(destArchive)
-	if err != nil {
-		a.update(func() {
-			a.setStatus("读取更新包失败: "+err.Error(), true)
-		})
-		return
-	}
-	if err := a.updaterSvc.VerifyArchive(data, res.Manifest.Signature); err != nil {
-		a.update(func() {
-			a.setStatus("更新签名校验未通过: "+err.Error(), true)
+			a.setStatus("安装更新失败: "+err.Error(), true)
 		})
 		return
 	}
 
 	a.update(func() {
-		a.setStatus("更新包校验通过，请重启应用生效", false)
+		a.setStatus("更新安装完成，正在重启应用…", false)
 	})
-	if a.window != nil {
-		successRes, _ := mygo.Dialog.Message(mygo.MessageOptions{
-			Parent:        a.window,
-			Type:          mygo.MessageInfo,
-			Title:         "更新准备就绪",
-			Message:       fmt.Sprintf("BGGo %s 已准备就绪", res.LatestVersion),
-			Detail:        "点击确定重启应用以完成更新。",
-			Buttons:       []string{"重启应用", "稍后重启"},
-			DefaultButton: 0,
-		})
-		if successRes.Button == 0 {
-			mygo.App.Relaunch()
-		}
-	}
+	a.relaunchAfterUpdate()
 }
 
 func (a *application) runSilentUpdateCheck() {
@@ -1961,7 +2037,7 @@ func (a *application) runAutoBingCheck() {
 	}
 	var bmp *ui.Bitmap
 	if data, err := os.ReadFile(localPath); err == nil {
-		bmp, _ = ui.DecodeBitmap(data)
+		bmp, _ = decodeWallpaper(data)
 	}
 	_ = a.setter.Set(localPath)
 	var syncVSCode bool
@@ -2149,10 +2225,8 @@ func main() {
 			for _, p := range e.Paths {
 				ext := strings.ToLower(filepath.Ext(p))
 				if ext == ".jpg" || ext == ".jpeg" || ext == ".png" || ext == ".webp" || ext == ".bmp" {
-					a.update(func() {
-						a.tab = "local"
-						a.loadWallpaper(p)
-					})
+					a.update(func() { a.tab = "local" })
+					a.loadWallpaper(p)
 					break
 				}
 			}

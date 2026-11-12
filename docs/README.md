@@ -24,11 +24,11 @@
 
 | 项目 | 当前值 |
 | --- | --- |
-| 桌面应用版本 | `0.1.0`（`mygo.json`） |
-| VS Code 扩展版本 | `0.1.5`（`extensions/bggo-vscode/package.json`） |
+| 桌面应用版本 | `0.2.9`（`mygo.json`） |
+| VS Code 扩展版本 | `0.2.9`（`extensions/bggo-vscode/package.json`） |
 | Go | `1.27.3` |
-| MyGo | `v0.5.5` |
+| MyGo | `v0.7.4` |
 | Node 包管理器 | pnpm `11.5.2` |
 | 产品阶段 | Alpha |
 
-桌面应用和扩展目前分别维护版本。正式发布前必须确定统一发布编号还是独立版本编号，并记录在 [发布与更新方案](release-and-update.md) 中。
+当前代码、本地预检脚本、Release 工作流和发布文档统一要求桌面应用与扩展使用同一版本号，并使用 `vX.Y.Z` Tag；当前 `v0.2.9` 是这套规则下的基线版本。

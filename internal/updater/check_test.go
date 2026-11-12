@@ -7,10 +7,13 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -227,6 +230,29 @@ func TestInstallDebPackage_InvalidFile(t *testing.T) {
 	err := svc.InstallDebPackage("/non/existent/path/bggo.deb")
 	if err == nil {
 		t.Errorf("expected error for non-existent deb package")
+	}
+}
+
+func TestInstallDebPackage_GraphicalInstallerIsPending(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("xdg-open fallback is Linux-specific")
+	}
+
+	binDir := t.TempDir()
+	openPath := filepath.Join(binDir, "xdg-open")
+	if err := os.WriteFile(openPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", binDir)
+
+	debPath := filepath.Join(t.TempDir(), "bggo.deb")
+	if err := os.WriteFile(debPath, []byte("placeholder"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	err := NewService(Config{}).InstallDebPackage(debPath)
+	if !errors.Is(err, ErrInstallPending) {
+		t.Fatalf("InstallDebPackage() error = %v, want ErrInstallPending", err)
 	}
 }
 

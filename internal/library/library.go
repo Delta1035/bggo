@@ -3,8 +3,10 @@ package library
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 const (
@@ -17,6 +19,7 @@ type State struct {
 	Favorites  []string `json:"favorites,omitempty"`
 	SyncVSCode bool     `json:"sync_vscode,omitempty"`
 	AutoBing   bool     `json:"auto_bing,omitempty"`
+	Notice     string   `json:"-"`
 }
 
 type Store struct {
@@ -46,7 +49,11 @@ func (s *Store) Load() (State, error) {
 	}
 	var state State
 	if err := json.Unmarshal(data, &state); err != nil {
-		return State{}, err
+		backupPath := fmt.Sprintf("%s.corrupt-%s", s.path, time.Now().UTC().Format("20060102T150405.000000000Z"))
+		if backupErr := os.Rename(s.path, backupPath); backupErr != nil {
+			return State{}, fmt.Errorf("配置文件损坏且无法备份: %w (备份失败: %v)", err, backupErr)
+		}
+		state.Notice = "壁纸历史配置损坏，已自动备份并重置"
 	}
 	return state, nil
 }

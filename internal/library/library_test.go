@@ -1,7 +1,9 @@
 package library
 
 import (
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -126,5 +128,44 @@ func TestClearRecent(t *testing.T) {
 	}
 	if len(loaded.Recent) != 0 {
 		t.Errorf("expected loaded.Recent to be empty, got %#v", loaded.Recent)
+	}
+}
+
+func TestLoadBacksUpCorruptedState(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "library.json")
+	if err := os.WriteFile(path, []byte(`{"recent":`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	store := NewStoreWithPath(path)
+	state, err := store.Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if state.Notice == "" {
+		t.Fatal("expected a recovery notice")
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("expected corrupted file to be moved, stat error = %v", err)
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var backupFound bool
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), "library.json.corrupt-") {
+			backupFound = true
+			break
+		}
+	}
+	if !backupFound {
+		t.Fatal("expected a backup of the corrupted configuration")
+	}
+
+	if _, err := store.Add("recovered.png"); err != nil {
+		t.Fatalf("Add() after recovery error = %v", err)
 	}
 }

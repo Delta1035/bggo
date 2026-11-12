@@ -26,7 +26,7 @@ BGGo 是一个基于 [MyGo](https://github.com/egoist/mygo) 原生 UI 的跨平�
 
 ## 开发环境
 
-MyGo `v0.5.5` 需要 Go `1.27.2+`。仓库声明了 Go 工具链版本，启用 `GOTOOLCHAIN=auto` 时 Go 可以自动获取匹配的工具链。
+MyGo `v0.7.4` 需要 Go `1.27.3+`。仓库声明了 Go 工具链版本，启用 `GOTOOLCHAIN=auto` 时 Go 可以自动获取匹配的工具链。
 
 ```bash
 go mod download
@@ -53,4 +53,4 @@ VS Code 扩展的开发与打包方法见 `extensions/bggo-vscode/README.md`。
 
 ## CI 与测试版发布
 
-GitHub Actions 在分支提交和 PR 时检查并打包桌面应用及 VS Code 扩展。推送 `desktop-vX.Y.Z` 或 `vscode-vX.Y.Z` Tag 后会生成带校验和的 Release 草稿；版本必须匹配组件配置。操作步骤与签名、商店发布的后续安排见 [发布与更新方案](docs/release-and-update.md)。
+GitHub Actions 在分支提交和 PR 时检查并打包桌面应用及 VS Code 扩展。桌面端和扩展使用统一版本号；推送匹配的 `vX.Y.Z` Tag 后会生成带校验和的 draft/prerelease。操作步骤与签名、商店发布的后续安排见 [发布与更新方案](docs/release-and-update.md)。

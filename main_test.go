@@ -59,6 +59,13 @@ func TestPreviewFit(t *testing.T) {
 	}
 }
 
+func TestDecodeWallpaperRejectsOversizedPayload(t *testing.T) {
+	data := make([]byte, int(maxWallpaperFileBytes)+1)
+	if _, err := decodeWallpaper(data); err == nil || !strings.Contains(err.Error(), "文件过大") {
+		t.Fatalf("decodeWallpaper() error = %v, want oversized-file error", err)
+	}
+}
+
 func TestToggleSyncVSCode(t *testing.T) {
 	tmp := t.TempDir()
 	store := &library.Store{}
@@ -742,6 +749,7 @@ func TestPreviewStatusLabel_AppliedVsPreviewing(t *testing.T) {
 
 	a := newApplication()
 	a.loadWallpaper(pngPath)
+	waitForWallpaper(t, a, pngPath)
 
 	// 1. 此时为刚载入预览态，尚未应用到系统桌面
 	a.applied = ""
@@ -857,6 +865,7 @@ func TestMacOSDockSimulatorInPreview(t *testing.T) {
 
 	a := newApplication()
 	a.loadWallpaper(pngPath)
+	waitForWallpaper(t, a, pngPath)
 
 	tt := ui.NewTester(a.view, 1000, 680)
 	// 原型 Dock 6 个应用图标
@@ -954,6 +963,7 @@ func TestLargePreviewActionControls_FavAndExport(t *testing.T) {
 	a := newApplication()
 	a.store = store
 	a.loadWallpaper(pngPath)
+	waitForWallpaper(t, a, pngPath)
 
 	// 1. 未收藏时，大图悬浮栏应显示 "收藏" 和 "另存为"
 	tt := ui.NewTester(a.view, 1000, 680)
@@ -1106,4 +1116,28 @@ func TestTrayQuitBehavior(t *testing.T) {
 	if shouldPreventClose(true, false) {
 		t.Errorf("expected shouldPreventClose(true, false) = false when quitting")
 	}
+}
+
+func TestPrepareForRelaunchAllowsWindowClose(t *testing.T) {
+	a := &application{}
+	a.prepareForRelaunch()
+
+	if !a.quitting {
+		t.Fatal("expected relaunch to enter quitting state before MyGo closes the window")
+	}
+	if shouldPreventClose(a.quitting, true) {
+		t.Fatal("expected relaunch to bypass the tray minimize-on-close behavior")
+	}
+}
+
+func waitForWallpaper(t *testing.T, a *application, path string) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if a.Selected() == path && a.Preview() != nil {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for wallpaper %q, status=%q", path, a.Status())
 }

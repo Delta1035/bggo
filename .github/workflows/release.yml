@@ -29,10 +29,14 @@ jobs:
           if not match:
               raise SystemExit('Expected vX.Y.Z (numeric semver only, e.g. v0.2.3)')
           version = f'{match[1]}.{match[2]}.{match[3]}'
-          with open('mygo.json') as f:
-              desktop_ver = json.load(f)['version']
-          if version != desktop_ver:
-              raise SystemExit(f'Tag {tag} does not match mygo.json: {desktop_ver}')
+          desktop_ver = json.load(open('mygo.json'))['version']
+          vscode_ver = json.load(open('extensions/bggo-vscode/package.json'))['version']
+          main = open('main.go', encoding='utf-8').read()
+          match_main = re.search(r'const AppVersion = "v?([0-9]+\.[0-9]+\.[0-9]+)"', main)
+          main_ver = match_main.group(1) if match_main else None
+          versions = {'mygo.json': desktop_ver, 'package.json': vscode_ver, 'main.go': main_ver}
+          if set(versions.values()) != {version}:
+              raise SystemExit(f'Tag {tag} and component versions disagree: {versions}')
           PY
 
   build:
@@ -82,4 +86,4 @@ jobs:
           NOTES
           gh release create "$RELEASE_TAG" release-assets/* \
             --verify-tag --title "$RELEASE_TAG" \
-            --notes-file notes.md
+            --notes-file notes.md --draft --prerelease

@@ -13,18 +13,17 @@
 
 ## 如何发测试版
 
-1. 桌面修改 `mygo.json`，扩展修改 `extensions/bggo-vscode/package.json`；两个版本独立维护。补充发布说明或 `CHANGELOG.md`。
+1. 使用 `python3 scripts/bump-version.py X.Y.Z` 同步修改 `mygo.json`、`extensions/bggo-vscode/package.json` 和 `main.go`，并补充 `CHANGELOG.md`。
 2. 提交修改并确认 CI 通过，然后在对应提交上打 Tag。例如：
 
    ```bash
-   # 桌面 0.1.0；只在确实准备发布该版本时执行
-   git tag desktop-v0.1.0
-   git push origin desktop-v0.1.0
-   # 扩展则使用 vscode-v0.1.5（须匹配 package.json）
+   # 只有准备发布该版本时才创建 Tag
+   git tag v0.2.10
+   git push origin v0.2.10
    ```
 
-3. `.github/workflows/release.yml` 校验 Tag 与组件版本完全一致，重新运行完整 CI，再仅收集该组件产物。当前接受数字形式的 `X.Y.Z`；Alpha 状态通过 GitHub prerelease 标记表达，暂不接受带后缀的 Tag。
-4. 自动生成 **draft + prerelease**，附带 `SHA256SUMS.txt`、记录提交 SHA 和 Actions 链接的 `BUILD-INFO.txt`。这些信息不是代码签名或构建来源认证。
+3. `.github/workflows/release.yml` 校验 Tag 与三个版本来源完全一致，并重新运行完整 CI。当前接受数字形式的 `vX.Y.Z` Tag；Alpha 状态通过 GitHub prerelease 标记表达，暂不接受带后缀的 Tag。
+4. 自动生成 **draft + prerelease**，包含桌面端、扩展、`SHA256SUMS.txt` 和记录提交 SHA/Actions 链接的 `BUILD-INFO.txt`。这些信息不是代码签名或构建来源认证。
 5. 下载并校验文件（Linux 使用 `sha256sum --check SHA256SUMS.txt`），完成安装、启动、升级和卸载测试，编辑发布说明，再手工发布草稿。当前产物未签名，应保留 prerelease 标记。
 
 工作流仅发布阶段具有 `contents: write`，使用 GitHub 自带的 `GITHUB_TOKEN`，不需要额外 PAT。建议为发布 Tag 设置 repository ruleset，限制创建、修改和删除权限，并为默认分支启用 CI 必须通过的规则。仓库组织策略必须允许工作流创建 Release。
@@ -42,13 +41,13 @@
 
 ## 版本策略
 
-正式发布前建议采用独立版本：
+当前采用统一版本：
 
 - 桌面应用版本由 `mygo.json` 管理。
 - VS Code 扩展版本由 `extensions/bggo-vscode/package.json` 管理。
-- Git Tag 使用组件前缀，例如 `desktop-v0.2.0` 和 `vscode-v0.2.0`。
+- Git Tag 使用 `vX.Y.Z`，同时代表桌面应用和 VS Code 扩展。
 
-两个组件可以独立修复和发布，独立版本比强制同步更清晰。如果决定统一版本，必须先修改本文、CI 和发布脚本，避免同一 Tag 指向含义不同的产物。
+两个组件暂时一起发布；如果未来需要独立版本，必须同时修改本文、CI、更新源和发布脚本，避免同一 Tag 指向含义不同的产物。
 
 版本遵循 SemVer：
 
