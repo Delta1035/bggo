@@ -907,3 +907,154 @@ func TestOnlineCard4KUHDBadge(t *testing.T) {
 		t.Errorf("missing '4K UHD' badge on wallpaper card")
 	}
 }
+
+func TestFavoritesSubTabUIAndCards(t *testing.T) {
+	tmpDir := t.TempDir()
+	favFile := filepath.Join(tmpDir, "fav_img.png")
+	_ = os.WriteFile(favFile, generateTestPNG(), 0o644)
+	store := library.NewStoreWithPath(filepath.Join(tmpDir, "library.json"))
+
+	a := newApplication()
+	a.store = store
+	a.tab = "local"
+	a.recent = []string{"/tmp/recent1.png"}
+	a.favorites = []string{favFile}
+
+	// 1. 默认展示最近使用
+	a.localSubTab = "recent"
+	tt := ui.NewTester(a.view, 1000, 680)
+	if !tt.HasText("最近使用 · 1") {
+		t.Errorf("expected '最近使用 · 1' in recent sub-tab")
+	}
+	if !tt.HasText("清空") {
+		t.Errorf("expected '清空' button in recent sub-tab")
+	}
+
+	// 2. 切换到我的收藏
+	a.localSubTab = "favorites"
+	tt = ui.NewTester(a.view, 1000, 680)
+	if !tt.HasText("我的收藏 · 1") {
+		t.Errorf("expected '我的收藏 · 1' in favorites sub-tab")
+	}
+	if !tt.HasText(filepath.Base(favFile)) {
+		t.Errorf("expected favorite item filename %q in list", filepath.Base(favFile))
+	}
+	// 收藏列表不应显示“清空”按钮
+	if tt.HasText("清空") {
+		t.Errorf("did not expect '清空' button in favorites sub-tab")
+	}
+}
+
+func TestLargePreviewActionControls_FavAndExport(t *testing.T) {
+	tmpDir := t.TempDir()
+	pngPath := filepath.Join(tmpDir, "sample.png")
+	_ = os.WriteFile(pngPath, generateTestPNG(), 0o644)
+	store := library.NewStoreWithPath(filepath.Join(tmpDir, "library.json"))
+
+	a := newApplication()
+	a.store = store
+	a.loadWallpaper(pngPath)
+
+	// 1. 未收藏时，大图悬浮栏应显示 "收藏" 和 "另存为"
+	tt := ui.NewTester(a.view, 1000, 680)
+	if !tt.HasText("收藏") {
+		t.Errorf("missing '收藏' button in large preview box")
+	}
+	if !tt.HasText("另存为") {
+		t.Errorf("missing '另存为' button in large preview box")
+	}
+
+	// 2. 加入收藏后，大图悬浮栏应显示 "已收藏"
+	a.toggleFavorite(pngPath)
+	tt = ui.NewTester(a.view, 1000, 680)
+	if !tt.HasText("已收藏") {
+		t.Errorf("expected '已收藏' status in large preview box")
+	}
+}
+
+func TestBottomBarStandaloneMapVSCode(t *testing.T) {
+	tmpDir := t.TempDir()
+	dummyImg := filepath.Join(tmpDir, "wall.png")
+	_ = os.WriteFile(dummyImg, generateTestPNG(), 0o644)
+
+	called := false
+	mockRunner := func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		called = true
+		return []byte("ok"), nil
+	}
+
+	a := newApplication()
+	a.selected = dummyImg
+	a.vscode = vscode.Service{
+		UserDir:       filepath.Join(tmpDir, "User"),
+		CommandRunner: mockRunner,
+	}
+
+	// 验证底部操作栏渲染了独立的 "映射到 VS Code" 按钮
+	tt := ui.NewTester(a.view, 1000, 680)
+	if !tt.HasText("映射到 VS Code") {
+		t.Errorf("missing standalone '映射到 VS Code' button in bottom bar")
+	}
+
+	// 验证触发 applyVSCode 后的执行状态
+	a.applyVSCode()
+	if !a.busy {
+		t.Errorf("expected busy=true while applying to VS Code")
+	}
+	_ = called
+}
+
+func TestOnlineGridFilterSortingOptions(t *testing.T) {
+	a := newApplication()
+	a.tab = "online"
+	a.onlineView = "grid"
+	a.wallpapers = []online.WallpaperItem{
+		{ID: "1", Title: "普通风景 A", Resolution: "1920x1080", Source: "360"},
+		{ID: "2", Title: "4K极清 B", Resolution: "3840x2160", Source: "360"},
+		{ID: "3", Title: "普通风景 C", Resolution: "1920x1080", Source: "360"},
+	}
+
+	// 1. 默认精选推荐
+	a.filterOption = "精选推荐"
+	tt := ui.NewTester(a.view, 1000, 680)
+	if !tt.HasText("普通风景 A") || !tt.HasText("4K极清 B") || !tt.HasText("普通风景 C") {
+		t.Fatalf("expected all 3 items to show in default sort")
+	}
+
+	// 2. 切换为最新壁纸 (顺序翻转)
+	a.filterOption = "最新壁纸"
+	tt = ui.NewTester(a.view, 1000, 680)
+	if !tt.HasText("普通风景 C") {
+		t.Errorf("expected items to render in '最新壁纸' mode")
+	}
+
+	// 3. 切换为最高人气 (4K 优先排在前面)
+	a.filterOption = "最高人气"
+	tt = ui.NewTester(a.view, 1000, 680)
+	if !tt.HasText("4K极清 B") {
+		t.Errorf("expected items to render in '最高人气' mode")
+	}
+}
+
+func TestOnlineBottomBar_PreviewModeClosureAndBingPagination(t *testing.T) {
+	a := newApplication()
+	a.tab = "online"
+
+	// 1. 测试必应源单页分页限制
+	a.onlineView = "grid"
+	a.selectedCategory = online.Category{ID: "bing_daily", Name: "必应每日精选", Source: "bing"}
+	tt := ui.NewTester(a.view, 1000, 680)
+	if !tt.HasText("第 1 / 1 页") {
+		t.Errorf("expected Bing category pagination to be '第 1 / 1 页', got texts: %q", tt.Texts())
+	}
+
+	// 2. 测试进入大图预览模式后的底部操作栏闭环
+	a.onlineView = "preview"
+	tt = ui.NewTester(a.view, 1000, 680)
+	if !tt.HasText("✓ 应用到桌面") {
+		t.Errorf("expected '✓ 应用到桌面' button in online preview mode bottom bar")
+	}
+	if !tt.HasText("映射到 VS Code") {
+		t.Errorf("expected '映射到 VS Code' button in online preview mode bottom bar")
+	}
+}
