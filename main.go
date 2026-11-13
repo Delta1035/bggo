@@ -35,7 +35,7 @@ import (
 //go:embed resources/icon.png
 var appIconBytes []byte
 
-const AppVersion = "v0.2.11"
+const AppVersion = "v0.2.12"
 
 const (
 	maxWallpaperFileBytes int64 = 64 << 20
@@ -425,7 +425,7 @@ func (a *application) drawSidebar(c *ui.Context, t *ui.Theme) {
 		// 4. 中间内容区：根据模式展示
 		if a.tab == "local" {
 			// 本地模式：选择本地图片主按钮
-			chooseBtn := ui.ButtonBase(c.Key("btn-choose-file")).FillWidth().Height(36).Radius(8).Background(ui.Hex("#007AFF"))
+			chooseBtn := ui.ButtonBase(c.Key("btn-choose-file")).FillWidth().Height(44).Radius(8).Background(ui.Hex("#007AFF"))
 			chooseBtn.Children(func() {
 				ui.Row(c).Center().Gap(7).Children(func() {
 					ui.Icon(c, icons.FolderOpen).Size(15, 15).TextColor(ui.Hex("#FFFFFF"))
@@ -539,11 +539,8 @@ func (a *application) drawSidebar(c *ui.Context, t *ui.Theme) {
 							specCol = ui.Hex("#007AFF")
 						}
 
-						cardBtn := ui.ButtonBase(c.Key("item-"+path)).FillWidth().Height(46).Radius(8).Background(cardBg).Border(1, borderCol).Padding(6, 8).Tooltip(path)
-						if cardBtn.Clicked() {
-							a.loadWallpaper(path)
-						}
-						cardBtn.Children(func() {
+						// 壁纸条目使用普通容器，文件名用 Link 保留点击和文本复制能力。
+						ui.Box(c).FillWidth().Height(46).Radius(8).Background(cardBg).Border(1, borderCol).Padding(6, 8).Selectable().Children(func() {
 							ui.Row(c).AlignItems(ui.Center).Gap(8).Fill().Children(func() {
 								// 1. 左侧缩略图
 								thumbBmp := a.getRecentThumbnail(path)
@@ -557,7 +554,10 @@ func (a *application) drawSidebar(c *ui.Context, t *ui.Theme) {
 
 								// 2. 中间双行信息 (标题 + 规格)
 								ui.Column(c).Grow(1).Gap(1).Children(func() {
-									ui.Text(c, filepath.Base(path)).FontSize(12).Bold().TextColor(titleCol).SingleLine()
+									filenameLink := ui.Link(c.Key("item-"+path), filepath.Base(path), "").FontSize(12).Bold().TextColor(titleCol).SingleLine().Tooltip(path)
+									if filenameLink.Clicked() {
+										a.loadWallpaper(path)
+									}
 									ui.Text(c, spec).FontSize(10).TextColor(specCol).SingleLine()
 								})
 
@@ -650,25 +650,26 @@ func (a *application) drawSidebar(c *ui.Context, t *ui.Theme) {
 
 		// 5. 底部信息与检查更新
 		ui.Column(c).Gap(10).FillWidth().Children(func() {
-			chkBtn := ui.ButtonBase(c.Key("btn-check-update")).FillWidth().Height(32).Radius(6).Background(ui.Hex("#FFFFFF")).Border(1, ui.Hex("#D1D5DB"))
-			chkBtn.Children(func() {
-				ui.Row(c).Center().Gap(6).Children(func() {
-					ui.Icon(c, icons.Sparkles).Size(13, 13).TextColor(ui.Hex("#3B82F6"))
-					ui.Text(c, "检查更新").FontSize(12).TextColor(ui.Hex("#1E293B")).Bold()
-				})
-			})
-			if chkBtn.Clicked() {
-				a.checkForUpdates()
-			}
 			footerNote := "BGGo Desktop · 已是最新版"
 			if a.tab == "online" {
 				footerNote = "BGGo Desktop · 已连接微软官方CDN"
 			} else if a.tab == "plugins" {
 				footerNote = "BGGo Desktop · 插件运行在独立受限环境"
 			}
-			ui.Row(c).Justify(ui.Center).FillWidth().Children(func() {
-				ui.Text(c, footerNote).FontSize(11).TextColor(ui.Hex("#94A3B8"))
+
+			chkBtn := ui.ButtonBase(c.Key("btn-check-update")).FillWidth().Height(40).Radius(8).Background(ui.Hex("#FFFFFF")).Border(1, ui.Hex("#D1D5DB")).Tooltip("检查更新")
+			chkBtn.Children(func() {
+				ui.Row(c).Center().Gap(6).Children(func() {
+					ui.Icon(c, icons.Sparkles).Size(13, 13).TextColor(ui.Hex("#3B82F6"))
+					ui.Column(c).Gap(1).AlignItems(ui.Start).Children(func() {
+						ui.Text(c, "检查更新").FontSize(12).TextColor(ui.Hex("#1E293B")).Bold()
+						ui.Text(c, footerNote).FontSize(9).TextColor(ui.Hex("#94A3B8"))
+					})
+				})
 			})
+			if chkBtn.Clicked() {
+				a.checkForUpdates()
+			}
 		})
 	})
 }
@@ -913,7 +914,7 @@ func (a *application) drawWallpaperGrid(c *ui.Context, t *ui.Theme) {
 	})
 }
 
-// drawLargePreviewBox 绘制大图预览区域 (内嵌 macOS Dock Simulator 拟真栏)
+// drawLargePreviewBox 绘制大图预览区域
 func (a *application) drawLargePreviewBox(c *ui.Context, t *ui.Theme) {
 	ui.Box(c).Grow(1).FillWidth().MinHeight(320).Radius(14).Clip().Background(ui.Hex("#0B192C")).Border(1, ui.Hex("#00000010")).Children(func() {
 		if a.preview == nil {
@@ -999,30 +1000,6 @@ func (a *application) drawLargePreviewBox(c *ui.Context, t *ui.Theme) {
 			})
 		})
 
-		// 3. 底部居中悬浮：macOS Dock Simulator 拟真栏 (Absolute 定位在卡片底部)
-		ui.Row(c).Absolute().Bottom(16).Left(0).Right(0).Justify(ui.Center).Children(func() {
-			ui.Box(c).Radius(16).Background(ui.Hex("#FFFFFF30")).Border(1, ui.Hex("#FFFFFF40")).Padding(8, 14).Children(func() {
-				ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
-					dockItems := []struct {
-						label string
-						icon  string
-					}{
-						{"Safari", "🧭"},
-						{"终端", "⚡"},
-						{"VS Code", "⟨/⟩"},
-						{"访达", "📁"},
-						{"音乐", "🎵"},
-						{"设置", "⚙"},
-					}
-					for _, item := range dockItems {
-						item := item
-						ui.Box(c).Width(32).Height(32).Radius(8).Background(ui.Hex("#FFFFFFE0")).Border(1, ui.Hex("#00000010")).Center().Tooltip(item.label).Children(func() {
-							ui.Text(c, item.icon).FontSize(15).TextColor(ui.Hex("#1E293B"))
-						})
-					}
-				})
-			})
-		})
 	})
 }
 
@@ -1057,8 +1034,8 @@ func (a *application) drawFitSelector(c *ui.Context, t *ui.Theme) {
 
 // drawLocalBottomBar 绘制本地壁纸底部操作栏
 func (a *application) drawLocalBottomBar(c *ui.Context, t *ui.Theme) {
-	ui.Row(c).AlignItems(ui.Center).Gap(10).FillWidth().Children(func() {
-		// 左侧：状态圆点与当前状态
+	ui.Column(c).Gap(8).FillWidth().Children(func() {
+		// 状态单独占一行，避免和操作按钮争夺空间。
 		dotColor := ui.Hex("#10B981")
 		if a.error {
 			dotColor = ui.Hex("#E81123")
@@ -1070,82 +1047,67 @@ func (a *application) drawLocalBottomBar(c *ui.Context, t *ui.Theme) {
 			statusMsg = a.status
 		}
 
-		ui.Row(c).AlignItems(ui.Center).Gap(7).Children(func() {
+		ui.Row(c).AlignItems(ui.Center).Gap(7).FillWidth().Children(func() {
 			ui.Box(c).Width(8).Height(8).Radius(4).Background(dotColor)
 			ui.Text(c, statusMsg).FontSize(12).TextColor(ui.Hex("#64748B")).SingleLine()
 		})
 
-		ui.Spacer(c)
-
-		// 右侧操作按钮组 (在文件夹中显示、映射到 VS Code、VS Code 同步胶囊、应用到桌面)
-		ui.Row(c).AlignItems(ui.Center).Gap(10).Children(func() {
-			// 1. 在文件夹中显示
-			folderBtn := ui.ButtonBase(c.Key("btn-show-folder")).Height(36).Radius(8).Background(ui.Hex("#F8FAFC")).Border(1, ui.Hex("#E2E8F0")).Padding(0, 10).Disabled(a.selected == "")
-			folderBtn.Children(func() {
-				ui.Row(c).AlignItems(ui.Center).Gap(5).Children(func() {
-					ui.Icon(c, icons.ExternalLink).Size(12, 12).TextColor(ui.Hex("#334155"))
-					ui.Text(c, "↗ 在文件夹中显示").FontSize(12).TextColor(ui.Hex("#334155"))
-				})
+		// 操作按钮只展示图标，中文说明通过悬浮提示和无障碍标签提供。
+		ui.Row(c).AlignItems(ui.Center).Justify(ui.End).Gap(12).FillWidth().Children(func() {
+			folderBtn := ui.ButtonBase(c.Key("btn-show-folder")).Width(40).Height(40).Radius(8).Background(ui.Hex("#F8FAFC")).Border(1, ui.Hex("#CBD5E1")).Disabled(a.selected == "").Label("在文件夹中显示").Tooltip("在文件夹中显示")
+			folderBtn.Center().Children(func() {
+				ui.Icon(c, icons.ExternalLink).Size(14, 14).TextColor(ui.Hex("#334155"))
 			})
 			if folderBtn.Clicked() {
 				mygo.Shell.ShowItemInFolder(a.selected)
 			}
 
-			// 2. 映射到 VS Code (补全独立触发能力)
-			vscodeBtn := ui.ButtonBase(c.Key("btn-map-vscode")).Height(36).Radius(8).Background(ui.Hex("#F8FAFC")).Border(1, ui.Hex("#E2E8F0")).Padding(0, 10).Disabled(a.selected == "" || a.busy)
-			vscodeBtn.Children(func() {
-				ui.Row(c).AlignItems(ui.Center).Gap(5).Children(func() {
-					ui.Icon(c, icons.Code).Size(12, 12).TextColor(ui.Hex("#007AFF"))
-					ui.Text(c, "映射到 VS Code").FontSize(12).TextColor(ui.Hex("#007AFF"))
-				})
+			vscodeBtn := ui.ButtonBase(c.Key("btn-map-vscode")).Width(40).Height(40).Radius(8).Background(ui.Hex("#F8FAFC")).Border(1, ui.Hex("#CBD5E1")).Disabled(a.selected == "" || a.busy).Label("映射到 VS Code").Tooltip("映射到 VS Code")
+			vscodeBtn.Center().Children(func() {
+				ui.Icon(c, icons.Code).Size(14, 14).TextColor(ui.Hex("#007AFF"))
 			})
 			if vscodeBtn.Clicked() {
 				a.applyVSCode()
 			}
 
-			// 3. VS Code 同步状态胶囊
-			syncLabel := "VS Code 自动同步中"
-			syncCol := ui.Hex("#22C55E")
-			if !a.syncVSCode {
-				syncLabel = "同步到 VS Code"
-				syncCol = ui.Hex("#94A3B8")
+			syncBackground := ui.Hex("#F8FAFC")
+			syncBorder := ui.Hex("#CBD5E1")
+			syncIconColor := ui.Hex("#64748B")
+			syncTip := "VS Code 自动同步（当前关闭）"
+			if a.syncVSCode {
+				syncBackground = ui.Hex("#EFF6FF")
+				syncBorder = ui.Hex("#BFDBFE")
+				syncIconColor = ui.Hex("#007AFF")
+				syncTip = "VS Code 自动同步（当前开启）"
 			}
-			ui.Box(c).Height(36).Radius(8).Background(ui.Hex("#EFF6FF")).Border(1, ui.Hex("#BFDBFE")).Padding(0, 10).Children(func() {
-				ui.Row(c).AlignItems(ui.Center).Gap(6).Fill().Children(func() {
-					ui.Icon(c, icons.Code).Size(12, 12).TextColor(ui.Hex("#007AFF"))
-					syncBtn := ui.ButtonBase(c.Key("btn-sync-vscode")).Children(func() {
-						ui.Text(c, syncLabel).FontSize(12).TextColor(ui.Hex("#007AFF"))
-					})
-					if syncBtn.Clicked() {
-						a.syncVSCode = !a.syncVSCode
-						a.toggleSyncVSCode()
-					}
-					ui.Box(c).Width(6).Height(6).Radius(3).Background(syncCol)
-					ui.Text(c, "∨").FontSize(10).TextColor(ui.Hex("#007AFF"))
-				})
+			syncBtn := ui.ButtonBase(c.Key("btn-sync-vscode")).Width(40).Height(40).Radius(8).Background(syncBackground).Border(1, syncBorder).Label("VS Code 自动同步").Tooltip(syncTip)
+			syncBtn.Center().Children(func() {
+				ui.Icon(c, icons.Refresh).Size(15, 15).TextColor(syncIconColor)
 			})
-
-			// 4. 应用到桌面主按钮 (高亮主色)
-			applyLabel := "✓ 应用到桌面"
-			if a.busy {
-				applyLabel = "正在应用…"
+			if syncBtn.Clicked() {
+				a.syncVSCode = !a.syncVSCode
+				a.toggleSyncVSCode()
 			}
-			applyBtn := ui.ButtonBase(c.Key("btn-apply-desktop")).Height(36).Radius(8).Padding(0, 16).Disabled(a.selected == "" || a.busy)
+
+			applyTip := "应用到桌面"
+			if a.selected == "" {
+				applyTip += "：请选择壁纸后应用"
+			}
+			applyBtn := ui.ButtonBase(c.Key("btn-apply-desktop")).Width(44).Height(44).Radius(8).Padding(0).Disabled(a.selected == "" || a.busy).Label("应用到桌面").Tooltip(applyTip)
 			if a.selected == "" || a.busy {
-				applyBtn.Background(ui.Hex("#94A3B8"))
+				applyBtn.Background(ui.Hex("#93C5FD"))
 			} else {
 				applyBtn.Background(ui.Hex("#007AFF"))
 			}
 			applyBtn.Children(func() {
-				ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() {
-					if !a.busy {
-						ui.Icon(c, icons.Check).Size(14, 14).TextColor(ui.Hex("#FFFFFF"))
-					}
-					ui.Text(c, applyLabel).FontSize(13).Bold().TextColor(ui.Hex("#FFFFFF"))
-				})
+				ui.Icon(c, icons.Check).Size(15, 15).TextColor(ui.Hex("#FFFFFF"))
 			})
 			if applyBtn.Clicked() {
 				a.applyWallpaper()
+			}
+
+			if a.selected == "" {
+				ui.Text(c, "请选择壁纸后应用").FontSize(10).TextColor(ui.Hex("#64748B"))
 			}
 		})
 	})

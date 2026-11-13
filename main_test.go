@@ -32,10 +32,10 @@ func TestInitialView(t *testing.T) {
 		AppVersion,
 		"桌面壁纸预览",
 		"还没有选择壁纸",
-		"✓ 应用到桌面",
-		"同步到 VS Code",
+		"应用到桌面",
+		"VS Code 自动同步",
 		"检查更新",
-		"↗ 在文件夹中显示",
+		"在文件夹中显示",
 	} {
 		if !tt.HasText(text) {
 			t.Errorf("missing text %q; texts = %q", text, tt.Texts())
@@ -715,24 +715,28 @@ func TestBottomBarFavAndExport(t *testing.T) {
 	a.store = store
 	a.selected = filepath.Join(tmpDir, "test.png")
 
-	// 1. 默认自动同步开启时，底部栏渲染 "VS Code 自动同步中"
+	// 1. 自动同步开启时，图标按钮仍提供稳定的中文无障碍标签。
 	a.syncVSCode = true
 	tt := ui.NewTester(a.view, 1000, 680)
 	for _, text := range []string{
-		"↗ 在文件夹中显示",
-		"VS Code 自动同步中",
-		"✓ 应用到桌面",
+		"在文件夹中显示",
+		"映射到 VS Code",
+		"VS Code 自动同步",
+		"应用到桌面",
 	} {
 		if !tt.HasText(text) {
 			t.Errorf("missing text %q in bottom bar (sync=true)", text)
 		}
 	}
 
-	// 2. 切换同步关闭时，底部栏渲染 "同步到 VS Code"
+	// 2. 切换同步关闭时，仍保留同步入口，但不再显示开启状态文案。
 	a.syncVSCode = false
 	tt = ui.NewTester(a.view, 1000, 680)
-	if !tt.HasText("同步到 VS Code") {
-		t.Errorf("missing text '同步到 VS Code' in bottom bar (sync=false)")
+	if !tt.HasText("VS Code 自动同步") {
+		t.Errorf("missing sync tooltip label in bottom bar (sync=false)")
+	}
+	if tt.HasText("同步到 VS Code") {
+		t.Errorf("unexpected legacy sync label in bottom bar (sync=false)")
 	}
 
 	// 3. 验证核心收藏功能真实有效
@@ -858,7 +862,7 @@ func TestCategoryBadge(t *testing.T) {
 	}
 }
 
-func TestMacOSDockSimulatorInPreview(t *testing.T) {
+func TestPreviewDoesNotRenderDesktopDock(t *testing.T) {
 	tmpDir := t.TempDir()
 	pngPath := filepath.Join(tmpDir, "dock_test.png")
 	_ = os.WriteFile(pngPath, generateTestPNG(), 0o644)
@@ -868,10 +872,10 @@ func TestMacOSDockSimulatorInPreview(t *testing.T) {
 	waitForWallpaper(t, a, pngPath)
 
 	tt := ui.NewTester(a.view, 1000, 680)
-	// 原型 Dock 6 个应用图标
+	// 预览区域只展示壁纸，不再渲染装饰性桌面 Dock。
 	for _, dockIcon := range []string{"🧭", "⚡", "⟨/⟩", "📁", "🎵", "⚙"} {
-		if !tt.HasText(dockIcon) {
-			t.Errorf("missing macOS Dock simulator icon %q in preview", dockIcon)
+		if tt.HasText(dockIcon) {
+			t.Errorf("unexpected desktop Dock simulator icon %q in preview", dockIcon)
 		}
 	}
 }
@@ -1070,11 +1074,11 @@ func TestOnlineBottomBar_PreviewModeClosureAndBingPagination(t *testing.T) {
 	// 2. 测试进入大图预览模式后的底部操作栏闭环
 	a.onlineView = "preview"
 	tt = ui.NewTester(a.view, 1000, 680)
-	if !tt.HasText("✓ 应用到桌面") {
-		t.Errorf("expected '✓ 应用到桌面' button in online preview mode bottom bar")
+	if !tt.HasText("应用到桌面") {
+		t.Errorf("expected apply tooltip label in online preview mode bottom bar")
 	}
 	if !tt.HasText("映射到 VS Code") {
-		t.Errorf("expected '映射到 VS Code' button in online preview mode bottom bar")
+		t.Errorf("expected map tooltip label in online preview mode bottom bar")
 	}
 }
 

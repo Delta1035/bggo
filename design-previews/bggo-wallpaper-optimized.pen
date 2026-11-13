@@ -1,0 +1,3786 @@
+{
+  "version": "2.22",
+  "children": [
+    {
+      "type": "frame",
+      "id": "gcvqI",
+      "x": 60,
+      "y": 60,
+      "name": "BGGo Desktop Window - Local Wallpaper",
+      "clip": true,
+      "width": 1020,
+      "height": 690,
+      "fill": "#FFFFFF",
+      "cornerRadius": 14,
+      "stroke": "#0000001A",
+      "strokeWidth": 1,
+      "effect": {
+        "type": "shadow",
+        "shadowType": "outer",
+        "color": "#0000002A",
+        "offset": {
+          "x": 0,
+          "y": 20
+        },
+        "blur": 45
+      },
+      "layout": "vertical",
+      "children": [
+        {
+          "type": "frame",
+          "id": "d9YGy",
+          "name": "Window TitleBar",
+          "width": "fill_container",
+          "height": 38,
+          "fill": "#FFFFFF",
+          "stroke": "#E2E4E9",
+          "strokeWidth": {
+            "bottom": 1
+          },
+          "padding": [
+            0,
+            0,
+            0,
+            14
+          ],
+          "justifyContent": "space_between",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "EWB29",
+              "name": "TitleBar Brand",
+              "gap": 8,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "ng6dQ",
+                  "name": "Brand Logo Box",
+                  "width": 22,
+                  "height": 22,
+                  "fill": "#3B82F6",
+                  "cornerRadius": 6,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "cwDUw",
+                      "name": "Logo Icon",
+                      "content": "🖼",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "B5SnOp",
+                  "name": "Brand Title",
+                  "fill": "#0F172A",
+                  "content": "BGGo 壁纸",
+                  "fontFamily": "Inter",
+                  "fontSize": 13,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "frame",
+                  "id": "uAQdt",
+                  "name": "Version Capsule",
+                  "fill": "#F1F5F9",
+                  "cornerRadius": 10,
+                  "stroke": "#E2E4E9",
+                  "strokeWidth": 1,
+                  "padding": [
+                    2,
+                    7
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "msRIM",
+                      "name": "Version Text",
+                      "fill": "#64748B",
+                      "content": "v0.2.12",
+                      "fontFamily": "Inter",
+                      "fontSize": 10,
+                      "fontWeight": "700"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "vv7dV",
+              "name": "TitleBar Drag Spacer",
+              "width": "fill_container",
+              "height": "fill_container"
+            },
+            {
+              "type": "frame",
+              "id": "a5nXMg",
+              "name": "Window Control Buttons",
+              "height": 38,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "wi52t",
+                  "name": "Minimize Button",
+                  "width": 44,
+                  "height": 38,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "OGksV",
+                      "name": "Min Icon",
+                      "fill": "#64748B",
+                      "content": "—",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "mMpHW",
+                  "name": "Maximize Button",
+                  "width": 44,
+                  "height": 38,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "BAFbt",
+                      "name": "Max Icon",
+                      "fill": "#64748B",
+                      "content": "□",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "vYVcI",
+                  "name": "Close Button",
+                  "width": 44,
+                  "height": 38,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "K0TVe",
+                      "name": "Close Icon",
+                      "fill": "#64748B",
+                      "content": "✕",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "dvdsz",
+          "name": "Window Content Body",
+          "width": "fill_container",
+          "height": "fill_container",
+          "children": [
+            {
+              "type": "frame",
+              "id": "BWSCV",
+              "name": "macOS Sidebar",
+              "width": 260,
+              "height": "fill_container",
+              "fill": "#F5F6F8",
+              "stroke": "#E5E7EB",
+              "strokeWidth": {
+                "right": 1
+              },
+              "layout": "vertical",
+              "gap": 18,
+              "padding": [
+                20,
+                16,
+                16,
+                16
+              ],
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "w8jdZ",
+                  "name": "Mode Switch Capsule",
+                  "width": "fill_container",
+                  "height": 40,
+                  "fill": "#E5E7EB",
+                  "cornerRadius": 8,
+                  "gap": 3,
+                  "padding": 3,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "xhHlR",
+                      "name": "Tab Local Active",
+                      "width": "fill_container",
+                      "height": 34,
+                      "fill": "#FFFFFF",
+                      "cornerRadius": 6,
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "#00000014",
+                        "offset": {
+                          "x": 0,
+                          "y": 1
+                        },
+                        "blur": 2
+                      },
+                      "gap": 6,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "yCv91",
+                          "name": "Local Icon",
+                          "width": 13,
+                          "height": 13,
+                          "icon": "monitor",
+                          "library": "lucide",
+                          "fill": "#0F172A"
+                        },
+                        {
+                          "type": "text",
+                          "id": "C2RpW",
+                          "name": "Local Tab Text",
+                          "fill": "#0F172A",
+                          "content": "本地壁纸",
+                          "fontFamily": "Inter",
+                          "fontSize": 12,
+                          "fontWeight": "600"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "BXlHu",
+                      "name": "Tab Online Inactive",
+                      "width": "fill_container",
+                      "height": 34,
+                      "fill": "#00000000",
+                      "cornerRadius": 6,
+                      "gap": 6,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "pSUTD",
+                          "name": "Online Icon",
+                          "width": 13,
+                          "height": 13,
+                          "icon": "globe",
+                          "library": "lucide",
+                          "fill": "#64748B"
+                        },
+                        {
+                          "type": "text",
+                          "id": "dVVEn",
+                          "name": "Online Tab Text",
+                          "fill": "#64748B",
+                          "content": "在线图库",
+                          "fontFamily": "Inter",
+                          "fontSize": 12,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "mhNac",
+                  "name": "Choose Button Group",
+                  "width": "fill_container",
+                  "height": 66,
+                  "layout": "vertical",
+                  "gap": 6,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "dYbJd",
+                      "name": "Choose Wallpaper Button",
+                      "width": "fill_container",
+                      "height": 44,
+                      "fill": "#007AFF",
+                      "cornerRadius": 8,
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "#007AFF40",
+                        "offset": {
+                          "x": 0,
+                          "y": 1
+                        },
+                        "blur": 3
+                      },
+                      "gap": 7,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "nB3tI",
+                          "name": "Choose Icon",
+                          "width": 15,
+                          "height": 15,
+                          "icon": "folder-open",
+                          "library": "lucide",
+                          "fill": "#FFFFFF"
+                        },
+                        {
+                          "type": "text",
+                          "id": "BO6U6",
+                          "name": "Choose Text",
+                          "fill": "#FFFFFF",
+                          "content": "选择本地壁纸",
+                          "fontFamily": "Inter",
+                          "fontSize": 13,
+                          "fontWeight": "600"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "YXPbM",
+                      "name": "Drop Hint Row",
+                      "width": "fill_container",
+                      "gap": 4,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "M2TaVQ",
+                          "name": "Drop Icon",
+                          "width": 11,
+                          "height": 11,
+                          "icon": "download",
+                          "library": "lucide",
+                          "fill": "#94A3B8"
+                        },
+                        {
+                          "type": "text",
+                          "id": "hkiFW",
+                          "name": "Drop Hint Text",
+                          "fill": "#94A3B8",
+                          "content": "或直接拖放图片到窗口",
+                          "fontFamily": "Inter",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "giHZz",
+                  "name": "Recent Section",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 6,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "uLAuU",
+                      "name": "Recent Section Header",
+                      "width": "fill_container",
+                      "padding": [
+                        0,
+                        2
+                      ],
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "Z1dLO",
+                          "name": "Recent Header Title",
+                          "fill": "#64748B",
+                          "content": "最近使用 · 4",
+                          "fontFamily": "Inter",
+                          "fontSize": 11,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "SDS2Y",
+                          "name": "Clear History Button",
+                          "gap": 3,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "oheSE",
+                              "name": "Trash Icon",
+                              "width": 11,
+                              "height": 11,
+                              "icon": "trash-2",
+                              "library": "lucide",
+                              "fill": "#94A3B8"
+                            },
+                            {
+                              "type": "text",
+                              "id": "I20kO",
+                              "name": "Clear Text",
+                              "fill": "#94A3B8",
+                              "content": "清空",
+                              "fontFamily": "Inter",
+                              "fontSize": 11,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "dvnhr",
+                      "name": "Recent Item 1 Active",
+                      "width": "fill_container",
+                      "fill": "#EFF6FF",
+                      "cornerRadius": 8,
+                      "stroke": "#007AFF",
+                      "strokeWidth": 1,
+                      "gap": 8,
+                      "padding": [
+                        6,
+                        8
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "r5fWV",
+                          "name": "Thumb Aurora",
+                          "clip": true,
+                          "width": 34,
+                          "height": 22,
+                          "fill": {
+                            "type": "gradient",
+                            "gradientType": "linear",
+                            "enabled": true,
+                            "rotation": 135,
+                            "size": {
+                              "height": 1
+                            },
+                            "colors": [
+                              {
+                                "color": "#0B192C",
+                                "position": 0
+                              },
+                              {
+                                "color": "#1E3E62",
+                                "position": 0.5
+                              },
+                              {
+                                "color": "#3B82F6",
+                                "position": 1
+                              }
+                            ]
+                          },
+                          "cornerRadius": 4
+                        },
+                        {
+                          "type": "frame",
+                          "id": "bVkZ0",
+                          "name": "Meta Aurora",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 1,
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "E8G0b",
+                              "name": "Title Aurora",
+                              "fill": "#0F172A",
+                              "content": "aurora-fjord.jpg",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            },
+                            {
+                              "type": "text",
+                              "id": "OKcE7",
+                              "name": "Sub Aurora",
+                              "fill": "#007AFF",
+                              "content": "4K UHD · 3.2 MB",
+                              "fontFamily": "Inter",
+                              "fontSize": 10,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "icon",
+                          "id": "bcb9E",
+                          "name": "Active Check",
+                          "width": 13,
+                          "height": 13,
+                          "icon": "check",
+                          "library": "lucide",
+                          "fill": "#007AFF"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "w5xWHd",
+                      "name": "Recent Item 2",
+                      "width": "fill_container",
+                      "fill": "#00000000",
+                      "cornerRadius": 8,
+                      "gap": 8,
+                      "padding": [
+                        6,
+                        8
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "I25Y1",
+                          "name": "Thumb Minimal",
+                          "clip": true,
+                          "width": 34,
+                          "height": 22,
+                          "fill": {
+                            "type": "gradient",
+                            "gradientType": "linear",
+                            "enabled": true,
+                            "rotation": 135,
+                            "size": {
+                              "height": 1
+                            },
+                            "colors": [
+                              {
+                                "color": "#8B5CF6",
+                                "position": 0
+                              },
+                              {
+                                "color": "#EC4899",
+                                "position": 1
+                              }
+                            ]
+                          },
+                          "cornerRadius": 4
+                        },
+                        {
+                          "type": "frame",
+                          "id": "hE5V9",
+                          "name": "Meta Minimal",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 1,
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "LcKIH",
+                              "name": "Title Minimal",
+                              "fill": "#334155",
+                              "content": "minimal-gradient.png",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "G3C29j",
+                              "name": "Sub Minimal",
+                              "fill": "#94A3B8",
+                              "content": "5K Retina · 2.8 MB",
+                              "fontFamily": "Inter",
+                              "fontSize": 10,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "gLxUd",
+                      "name": "Recent Item 3",
+                      "width": "fill_container",
+                      "fill": "#00000000",
+                      "cornerRadius": 8,
+                      "gap": 8,
+                      "padding": [
+                        6,
+                        8
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "LRQOi",
+                          "name": "Thumb Kyoto",
+                          "clip": true,
+                          "width": 34,
+                          "height": 22,
+                          "fill": {
+                            "type": "gradient",
+                            "gradientType": "linear",
+                            "enabled": true,
+                            "rotation": 135,
+                            "size": {
+                              "height": 1
+                            },
+                            "colors": [
+                              {
+                                "color": "#F59E0B",
+                                "position": 0
+                              },
+                              {
+                                "color": "#DC2626",
+                                "position": 1
+                              }
+                            ]
+                          },
+                          "cornerRadius": 4
+                        },
+                        {
+                          "type": "frame",
+                          "id": "AYcpd",
+                          "name": "Meta Kyoto",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 1,
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "vi84l",
+                              "name": "Title Kyoto",
+                              "fill": "#334155",
+                              "content": "kyoto-garden.webp",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "o8Uyvj",
+                              "name": "Sub Kyoto",
+                              "fill": "#94A3B8",
+                              "content": "4K UHD · 1.9 MB",
+                              "fontFamily": "Inter",
+                              "fontSize": 10,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "WEgHJ",
+                      "name": "Recent Item 4",
+                      "width": "fill_container",
+                      "fill": "#00000000",
+                      "cornerRadius": 8,
+                      "gap": 8,
+                      "padding": [
+                        6,
+                        8
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "x9w3e",
+                          "name": "Thumb Night",
+                          "clip": true,
+                          "width": 34,
+                          "height": 22,
+                          "fill": {
+                            "type": "gradient",
+                            "gradientType": "linear",
+                            "enabled": true,
+                            "rotation": 135,
+                            "size": {
+                              "height": 1
+                            },
+                            "colors": [
+                              {
+                                "color": "#10B981",
+                                "position": 0
+                              },
+                              {
+                                "color": "#064E3B",
+                                "position": 1
+                              }
+                            ]
+                          },
+                          "cornerRadius": 4
+                        },
+                        {
+                          "type": "frame",
+                          "id": "OK2X9",
+                          "name": "Meta Night",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 1,
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "A8bHNd",
+                              "name": "Title Night",
+                              "fill": "#334155",
+                              "content": "cyber-grid.png",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "kCzko",
+                              "name": "Sub Night",
+                              "fill": "#94A3B8",
+                              "content": "2K QHD · 1.4 MB",
+                              "fontFamily": "Inter",
+                              "fontSize": 10,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "mXmV1",
+                  "name": "Sidebar Spacer",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "fill": "#00000000"
+                },
+                {
+                  "type": "frame",
+                  "id": "QeSoq",
+                  "name": "Sidebar Footer",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 10,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "q1eIn",
+                      "name": "Check Update Button",
+                      "width": "fill_container",
+                      "height": 40,
+                      "fill": "#FFFFFF",
+                      "cornerRadius": 6,
+                      "stroke": "#D1D5DB",
+                      "strokeWidth": 1,
+                      "gap": 6,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "ONr7S",
+                          "name": "Update Icon",
+                          "width": 13,
+                          "height": 13,
+                          "icon": "sparkles",
+                          "library": "lucide",
+                          "fill": "#007AFF"
+                        },
+                        {
+                          "type": "text",
+                          "id": "NomQP",
+                          "name": "Update Text",
+                          "fill": "#1E293B",
+                          "content": "检查更新 · 已是最新版",
+                          "fontFamily": "Inter",
+                          "fontSize": 11,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "jNx17",
+                      "x": 0,
+                      "y": 42,
+                      "name": "Version Label Bottom",
+                      "enabled": false,
+                      "fill": "#94A3B8",
+                      "content": "BGGo Desktop · 已是最新版",
+                      "textAlign": "center",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "xxxUD",
+              "name": "macOS Main Area",
+              "width": "fill_container",
+              "height": "fill_container",
+              "fill": "#FFFFFF",
+              "layout": "vertical",
+              "gap": 16,
+              "padding": [
+                18,
+                24,
+                20,
+                24
+              ],
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "LQ96J",
+                  "name": "Content Top Bar",
+                  "width": "fill_container",
+                  "justifyContent": "space_between",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "usJpQ",
+                      "name": "Title Column",
+                      "layout": "vertical",
+                      "gap": 2,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "s6vJAu",
+                          "name": "Section Title",
+                          "fill": "#0F172A",
+                          "content": "桌面壁纸预览",
+                          "fontFamily": "Inter",
+                          "fontSize": 20,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "text",
+                          "id": "dsWzy",
+                          "name": "Current Path",
+                          "fill": "#64748B",
+                          "content": "~/Pictures/Wallpapers/aurora-fjord-mountains.jpg",
+                          "fontFamily": "Inter",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "DwexI",
+                      "name": "Segmented Control",
+                      "height": 40,
+                      "fill": "#F1F5F9",
+                      "cornerRadius": 8,
+                      "gap": 2,
+                      "padding": 3,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "wJDpx",
+                          "name": "Segment Cover Active",
+                          "height": 34,
+                          "fill": "#FFFFFF",
+                          "cornerRadius": 6,
+                          "effect": {
+                            "type": "shadow",
+                            "shadowType": "outer",
+                            "color": "#00000014",
+                            "offset": {
+                              "x": 0,
+                              "y": 1
+                            },
+                            "blur": 2
+                          },
+                          "gap": 5,
+                          "padding": [
+                            4,
+                            10
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "xbkEX",
+                              "name": "Cover Icon",
+                              "width": 12,
+                              "height": 12,
+                              "icon": "maximize-2",
+                              "library": "lucide",
+                              "fill": "#0F172A"
+                            },
+                            {
+                              "type": "text",
+                              "id": "YukCI",
+                              "name": "Cover Text",
+                              "fill": "#0F172A",
+                              "content": "覆盖",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "qBHQQ",
+                          "name": "Segment Contain",
+                          "height": 34,
+                          "fill": "#00000000",
+                          "cornerRadius": 6,
+                          "gap": 5,
+                          "padding": [
+                            4,
+                            10
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "I8Gp6A",
+                              "name": "Contain Icon",
+                              "width": 12,
+                              "height": 12,
+                              "icon": "minimize-2",
+                              "library": "lucide",
+                              "fill": "#64748B"
+                            },
+                            {
+                              "type": "text",
+                              "id": "bLqgW",
+                              "name": "Contain Text",
+                              "fill": "#64748B",
+                              "content": "适应",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "500"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "K2dqv",
+                          "name": "Segment Stretch",
+                          "height": 34,
+                          "fill": "#00000000",
+                          "cornerRadius": 6,
+                          "gap": 5,
+                          "padding": [
+                            4,
+                            10
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "uVgLi",
+                              "name": "Stretch Icon",
+                              "width": 12,
+                              "height": 12,
+                              "icon": "move",
+                              "library": "lucide",
+                              "fill": "#64748B"
+                            },
+                            {
+                              "type": "text",
+                              "id": "jcXdb",
+                              "name": "Stretch Text",
+                              "fill": "#64748B",
+                              "content": "拉伸",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "500"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "T5o9X",
+                  "name": "Wallpaper Preview Canvas",
+                  "clip": true,
+                  "width": "fill_container",
+                  "height": 466,
+                  "fill": {
+                    "type": "gradient",
+                    "gradientType": "linear",
+                    "enabled": true,
+                    "rotation": 140,
+                    "size": {
+                      "height": 1
+                    },
+                    "colors": [
+                      {
+                        "color": "#0B192C",
+                        "position": 0
+                      },
+                      {
+                        "color": "#1E3E62",
+                        "position": 0.35
+                      },
+                      {
+                        "color": "#000000",
+                        "position": 0.7
+                      },
+                      {
+                        "color": "#17153B",
+                        "position": 1
+                      }
+                    ]
+                  },
+                  "cornerRadius": 14,
+                  "stroke": "#00000010",
+                  "strokeWidth": 1,
+                  "effect": {
+                    "type": "shadow",
+                    "shadowType": "outer",
+                    "color": "#0000000F",
+                    "offset": {
+                      "x": 0,
+                      "y": 4
+                    },
+                    "blur": 16
+                  },
+                  "layout": "vertical",
+                  "padding": 16,
+                  "justifyContent": "space_between",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "P5Xze",
+                      "name": "Preview Overlay Top",
+                      "width": "fill_container",
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "hc864",
+                          "name": "Current Desktop Status Badge",
+                          "fill": "#00000070",
+                          "cornerRadius": 20,
+                          "stroke": "#FFFFFF20",
+                          "strokeWidth": 1,
+                          "gap": 6,
+                          "padding": [
+                            5,
+                            12
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "ellipse",
+                              "id": "wh3c4",
+                              "name": "Active Green Dot",
+                              "fill": "#10B981",
+                              "width": 7,
+                              "height": 7
+                            },
+                            {
+                              "type": "text",
+                              "id": "LQXSD",
+                              "name": "Active Badge Label",
+                              "fill": "#FFFFFF",
+                              "content": "当前系统桌面壁纸",
+                              "fontFamily": "Inter",
+                              "fontSize": 11,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "wWQ1u",
+                          "name": "Info Pill",
+                          "fill": "#00000060",
+                          "cornerRadius": 20,
+                          "padding": [
+                            4,
+                            10
+                          ],
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "h8Zqai",
+                              "name": "Resolution Text",
+                              "fill": "#E2E8F0",
+                              "content": "3840 × 2160 · 4K UHD · 3.2 MB",
+                              "fontFamily": "Inter",
+                              "fontSize": 11,
+                              "fontWeight": "500"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "C3GVcJ",
+                      "name": "Center Art Elements",
+                      "width": "fill_container",
+                      "height": 260,
+                      "layout": "vertical",
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "ellipse",
+                          "id": "PwLDm",
+                          "name": "Aurora Moon Glow",
+                          "fill": {
+                            "type": "gradient",
+                            "gradientType": "radial",
+                            "enabled": true,
+                            "rotation": 0,
+                            "size": {
+                              "width": 1,
+                              "height": 1
+                            },
+                            "colors": [
+                              {
+                                "color": "#60A5FA80",
+                                "position": 0
+                              },
+                              {
+                                "color": "#3B82F620",
+                                "position": 0.6
+                              },
+                              {
+                                "color": "#00000000",
+                                "position": 1
+                              }
+                            ]
+                          },
+                          "width": 140,
+                          "height": 140
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "g3EIq",
+                      "x": 16,
+                      "y": 402,
+                      "name": "macOS Dock Simulator",
+                      "enabled": false,
+                      "fill": "#FFFFFF30",
+                      "cornerRadius": 16,
+                      "stroke": "#FFFFFF30",
+                      "strokeWidth": 1,
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "#00000030",
+                        "offset": {
+                          "x": 0,
+                          "y": 6
+                        },
+                        "blur": 20
+                      },
+                      "gap": 12,
+                      "padding": [
+                        8,
+                        14
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "UCooQ",
+                          "name": "Dock compass",
+                          "width": 32,
+                          "height": 32,
+                          "fill": "#FFFFFFE0",
+                          "cornerRadius": 8,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "FWjZN",
+                              "name": "DockIcon compass",
+                              "width": 18,
+                              "height": 18,
+                              "icon": "compass",
+                              "library": "lucide",
+                              "fill": "#1E293B"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "Uh42E",
+                          "name": "Dock terminal",
+                          "width": 32,
+                          "height": 32,
+                          "fill": "#FFFFFFE0",
+                          "cornerRadius": 8,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "vBCCh",
+                              "name": "DockIcon terminal",
+                              "width": 18,
+                              "height": 18,
+                              "icon": "terminal",
+                              "library": "lucide",
+                              "fill": "#1E293B"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "ycMVC",
+                          "name": "Dock code",
+                          "width": 32,
+                          "height": 32,
+                          "fill": "#FFFFFFE0",
+                          "cornerRadius": 8,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "h9Ei0t",
+                              "name": "DockIcon code",
+                              "width": 18,
+                              "height": 18,
+                              "icon": "code",
+                              "library": "lucide",
+                              "fill": "#1E293B"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "zX0mx",
+                          "name": "Dock folder",
+                          "width": 32,
+                          "height": 32,
+                          "fill": "#FFFFFFE0",
+                          "cornerRadius": 8,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "FvtRp",
+                              "name": "DockIcon folder",
+                              "width": 18,
+                              "height": 18,
+                              "icon": "folder",
+                              "library": "lucide",
+                              "fill": "#1E293B"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "crCX9",
+                          "name": "Dock music",
+                          "width": 32,
+                          "height": 32,
+                          "fill": "#FFFFFFE0",
+                          "cornerRadius": 8,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "g8F8L",
+                              "name": "DockIcon music",
+                              "width": 18,
+                              "height": 18,
+                              "icon": "music",
+                              "library": "lucide",
+                              "fill": "#1E293B"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "gB9b9",
+                          "name": "Dock settings",
+                          "width": 32,
+                          "height": 32,
+                          "fill": "#FFFFFFE0",
+                          "cornerRadius": 8,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "jjPl7",
+                              "name": "DockIcon settings",
+                              "width": 18,
+                              "height": 18,
+                              "icon": "settings",
+                              "library": "lucide",
+                              "fill": "#1E293B"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "gj8cn",
+                  "name": "Bottom Action Bar",
+                  "width": "fill_container",
+                  "height": 77,
+                  "layout": "vertical",
+                  "gap": 8,
+                  "justifyContent": "space_between",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "V1hYO",
+                      "name": "Status Indicator",
+                      "width": "fill_container",
+                      "height": 15,
+                      "gap": 7,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "ellipse",
+                          "id": "oahO3",
+                          "name": "Status Dot",
+                          "fill": "#10B981",
+                          "width": 8,
+                          "height": 8
+                        },
+                        {
+                          "type": "text",
+                          "id": "gPNQd",
+                          "name": "Status Text",
+                          "fill": "#475569",
+                          "content": "必应每日精选 · 第 1 页，共 30 张",
+                          "fontFamily": "Inter",
+                          "fontSize": 12,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "rpTkK",
+                      "name": "Right Actions",
+                      "width": "fill_container",
+                      "height": 44,
+                      "gap": 12,
+                      "justifyContent": "end",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "HWFCR",
+                          "name": "Show In Folder Button",
+                          "width": 40,
+                          "height": 40,
+                          "fill": "#F8FAFC",
+                          "cornerRadius": 8,
+                          "stroke": "#CBD5E1",
+                          "strokeWidth": 1,
+                          "gap": 6,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "Dumd2",
+                              "name": "Folder Icon",
+                              "width": 13,
+                              "height": 13,
+                              "icon": "external-link",
+                              "library": "lucide",
+                              "fill": "#475569"
+                            },
+                            {
+                              "type": "text",
+                              "id": "cvMgo",
+                              "x": 31,
+                              "y": 12.5,
+                              "name": "Show Folder Label",
+                              "enabled": false,
+                              "fill": "#334155",
+                              "content": "在文件夹中显示",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "500"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "DnzVl",
+                          "name": "Map to VS Code Button",
+                          "width": 40,
+                          "height": 40,
+                          "fill": "#F8FAFC",
+                          "cornerRadius": 8,
+                          "stroke": "#CBD5E1",
+                          "strokeWidth": 1,
+                          "gap": 7,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "Pdj13",
+                              "name": "VS Code Icon",
+                              "width": 14,
+                              "height": 14,
+                              "icon": "code",
+                              "library": "lucide",
+                              "fill": "#2563EB"
+                            },
+                            {
+                              "type": "text",
+                              "id": "L3fAv0",
+                              "x": 33,
+                              "y": 12.5,
+                              "name": "VS Code Label",
+                              "enabled": false,
+                              "fill": "#334155",
+                              "content": "映射到 VS Code",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "500"
+                            },
+                            {
+                              "type": "ellipse",
+                              "id": "pm4YH",
+                              "x": 154,
+                              "y": 15,
+                              "name": "Sync Dot",
+                              "enabled": false,
+                              "fill": "#22C55E",
+                              "width": 6,
+                              "height": 6
+                            },
+                            {
+                              "type": "icon",
+                              "id": "AS68t",
+                              "x": 167,
+                              "y": 12,
+                              "name": "Chevron Icon",
+                              "enabled": false,
+                              "width": 12,
+                              "height": 12,
+                              "icon": "chevron-down",
+                              "library": "lucide",
+                              "fill": "#2563EB"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "s6YKp",
+                          "name": "VS Code Auto Sync Button",
+                          "width": 40,
+                          "height": 40,
+                          "fill": "#F8FAFC",
+                          "cornerRadius": 8,
+                          "stroke": "#CBD5E1",
+                          "strokeWidth": 1,
+                          "gap": 7,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "k2AD4",
+                              "name": "Sync Code Icon",
+                              "width": 14,
+                              "height": 14,
+                              "icon": "refresh-cw",
+                              "library": "lucide",
+                              "fill": "#64748B"
+                            },
+                            {
+                              "type": "text",
+                              "id": "PWtuz",
+                              "x": 33,
+                              "y": 12.5,
+                              "name": "Sync Label",
+                              "enabled": false,
+                              "fill": "#1D4ED8",
+                              "content": "VS Code 自动同步",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "500"
+                            },
+                            {
+                              "type": "ellipse",
+                              "id": "i5mQE6",
+                              "x": 142,
+                              "y": 17,
+                              "name": "Sync Status Dot",
+                              "enabled": false,
+                              "fill": "#22C55E",
+                              "width": 6,
+                              "height": 6
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "xPW89",
+                          "name": "Apply Disabled Helper",
+                          "fill": "#64748B",
+                          "content": "请选择壁纸后应用",
+                          "fontFamily": "Inter",
+                          "fontSize": 10,
+                          "fontWeight": "500"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "XnSRQ",
+                          "name": "Apply Wallpaper Button",
+                          "width": 44,
+                          "height": 44,
+                          "fill": "#93C5FD",
+                          "cornerRadius": 8,
+                          "stroke": "#60A5FA",
+                          "strokeWidth": 1,
+                          "effect": {
+                            "type": "shadow",
+                            "shadowType": "outer",
+                            "color": "#007AFF4D",
+                            "offset": {
+                              "x": 0,
+                              "y": 2
+                            },
+                            "blur": 8
+                          },
+                          "gap": 7,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "MFOXJ",
+                              "name": "Check Icon",
+                              "width": 15,
+                              "height": 15,
+                              "icon": "check",
+                              "library": "lucide",
+                              "fill": "#FFFFFF"
+                            },
+                            {
+                              "type": "text",
+                              "id": "uIPrA",
+                              "x": 40,
+                              "y": 14,
+                              "name": "Apply Label",
+                              "enabled": false,
+                              "fill": "#FFFFFF",
+                              "content": "应用到桌面",
+                              "fontFamily": "Inter",
+                              "fontSize": 13,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "ugu56",
+      "x": 1140,
+      "y": 60,
+      "name": "BGGo Desktop Window - Online Gallery",
+      "clip": true,
+      "width": 1020,
+      "height": 690,
+      "fill": "#FFFFFF",
+      "cornerRadius": 14,
+      "stroke": "#0000001A",
+      "strokeWidth": 1,
+      "effect": {
+        "type": "shadow",
+        "shadowType": "outer",
+        "color": "#0000002A",
+        "offset": {
+          "x": 0,
+          "y": 20
+        },
+        "blur": 45
+      },
+      "layout": "vertical",
+      "children": [
+        {
+          "type": "frame",
+          "id": "xbazv",
+          "name": "Online Window TitleBar",
+          "width": "fill_container",
+          "height": 38,
+          "fill": "#FFFFFF",
+          "stroke": "#E2E4E9",
+          "strokeWidth": {
+            "bottom": 1
+          },
+          "padding": [
+            0,
+            0,
+            0,
+            14
+          ],
+          "justifyContent": "space_between",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "T4KFO8",
+              "name": "TitleBar Brand 2",
+              "gap": 8,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "VLeUj",
+                  "name": "Brand Logo Box 2",
+                  "width": 22,
+                  "height": 22,
+                  "fill": "#3B82F6",
+                  "cornerRadius": 6,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "FV4N3",
+                      "name": "Logo Icon 2",
+                      "content": "🖼",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "ZaOBh",
+                  "name": "Brand Title 2",
+                  "fill": "#0F172A",
+                  "content": "BGGo 壁纸",
+                  "fontFamily": "Inter",
+                  "fontSize": 13,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "frame",
+                  "id": "XnNlz",
+                  "name": "Version Capsule 2",
+                  "fill": "#F1F5F9",
+                  "cornerRadius": 10,
+                  "stroke": "#E2E4E9",
+                  "strokeWidth": 1,
+                  "padding": [
+                    2,
+                    7
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "VUXiZ",
+                      "name": "Version Text 2",
+                      "fill": "#64748B",
+                      "content": "v0.2.7",
+                      "fontFamily": "Inter",
+                      "fontSize": 10,
+                      "fontWeight": "700"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "d62g9",
+              "name": "TitleBar Drag Spacer 2",
+              "width": "fill_container",
+              "height": "fill_container"
+            },
+            {
+              "type": "frame",
+              "id": "roWfg",
+              "name": "Window Control Buttons 2",
+              "height": 38,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "ges3g",
+                  "name": "Minimize Button 2",
+                  "width": 44,
+                  "height": 38,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "g6c6U",
+                      "name": "Min Icon 2",
+                      "fill": "#64748B",
+                      "content": "—",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "dJpC4",
+                  "name": "Maximize Button 2",
+                  "width": 44,
+                  "height": 38,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "vaQ51",
+                      "name": "Max Icon 2",
+                      "fill": "#64748B",
+                      "content": "□",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "Y4xY4i",
+                  "name": "Close Button 2",
+                  "width": 44,
+                  "height": 38,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "vdiZW",
+                      "name": "Close Icon 2",
+                      "fill": "#64748B",
+                      "content": "✕",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "k7poFs",
+          "name": "Online Gallery Content Body",
+          "width": "fill_container",
+          "height": "fill_container",
+          "children": [
+            {
+              "type": "frame",
+              "id": "P3KhlL",
+              "name": "Online Gallery Sidebar",
+              "width": 260,
+              "height": "fill_container",
+              "fill": "#F5F6F8",
+              "stroke": "#E5E7EB",
+              "strokeWidth": {
+                "right": 1
+              },
+              "layout": "vertical",
+              "gap": 14,
+              "padding": [
+                20,
+                16,
+                16,
+                16
+              ],
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "VkFW4",
+                  "name": "Mode Switch Capsule 2",
+                  "width": "fill_container",
+                  "height": 34,
+                  "fill": "#E5E7EB",
+                  "cornerRadius": 8,
+                  "gap": 3,
+                  "padding": 3,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "d5eK0L",
+                      "name": "Tab Local Inactive 2",
+                      "width": "fill_container",
+                      "height": "fill_container",
+                      "fill": "#00000000",
+                      "cornerRadius": 6,
+                      "gap": 6,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "giwv0",
+                          "name": "Local Icon 2",
+                          "width": 13,
+                          "height": 13,
+                          "icon": "monitor",
+                          "library": "lucide",
+                          "fill": "#64748B"
+                        },
+                        {
+                          "type": "text",
+                          "id": "WsWGA",
+                          "name": "Local Tab Text 2",
+                          "fill": "#64748B",
+                          "content": "本地壁纸",
+                          "fontFamily": "Inter",
+                          "fontSize": 12,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "f4lyGp",
+                      "name": "Tab Online Active 2",
+                      "width": "fill_container",
+                      "height": "fill_container",
+                      "fill": "#FFFFFF",
+                      "cornerRadius": 6,
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "#00000014",
+                        "offset": {
+                          "x": 0,
+                          "y": 1
+                        },
+                        "blur": 2
+                      },
+                      "gap": 6,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "hs9Db",
+                          "name": "Online Icon 2",
+                          "width": 13,
+                          "height": 13,
+                          "icon": "globe",
+                          "library": "lucide",
+                          "fill": "#0F172A"
+                        },
+                        {
+                          "type": "text",
+                          "id": "Ov45w",
+                          "name": "Online Tab Text 2",
+                          "fill": "#0F172A",
+                          "content": "在线图库",
+                          "fontFamily": "Inter",
+                          "fontSize": 12,
+                          "fontWeight": "600"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "k5iYn4",
+                  "name": "Categories Section",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 4,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "J3toG",
+                      "name": "Cat Section Header",
+                      "width": "fill_container",
+                      "padding": [
+                        0,
+                        2
+                      ],
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "qlJRD",
+                          "name": "Cat Header Title",
+                          "fill": "#64748B",
+                          "content": "壁纸分类",
+                          "fontFamily": "Inter",
+                          "fontSize": 11,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "KdSc9",
+                          "name": "Refresh Cat Button",
+                          "gap": 3,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "Nu59u",
+                              "name": "Refresh Icon",
+                              "width": 11,
+                              "height": 11,
+                              "icon": "refresh-cw",
+                              "library": "lucide",
+                              "fill": "#94A3B8"
+                            },
+                            {
+                              "type": "text",
+                              "id": "knLX4",
+                              "name": "Refresh Text",
+                              "fill": "#94A3B8",
+                              "content": "刷新",
+                              "fontFamily": "Inter",
+                              "fontSize": 11,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "z41yo",
+                      "name": "Cat Item 1 Active",
+                      "width": "fill_container",
+                      "fill": "#EFF6FF",
+                      "cornerRadius": 7,
+                      "stroke": "#007AFF",
+                      "strokeWidth": 1,
+                      "padding": [
+                        7,
+                        10
+                      ],
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "E3Srq",
+                          "name": "Cat Left 1",
+                          "gap": 8,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "tKDfz",
+                              "name": "Bing Star Icon",
+                              "width": 14,
+                              "height": 14,
+                              "icon": "sparkles",
+                              "library": "lucide",
+                              "fill": "#007AFF"
+                            },
+                            {
+                              "type": "text",
+                              "id": "NWxtw",
+                              "name": "Bing Cat Text",
+                              "fill": "#007AFF",
+                              "content": "必应每日精选",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "o4aKbw",
+                          "name": "Badge 1",
+                          "fill": "#007AFF20",
+                          "cornerRadius": 10,
+                          "padding": [
+                            2,
+                            6
+                          ],
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "eeEcE",
+                              "name": "Badge Text 1",
+                              "fill": "#007AFF",
+                              "content": "8",
+                              "fontFamily": "Inter",
+                              "fontSize": 10,
+                              "fontWeight": "700"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "QDeNh",
+                      "name": "Cat Item 2",
+                      "width": "fill_container",
+                      "fill": "#00000000",
+                      "cornerRadius": 7,
+                      "padding": [
+                        7,
+                        10
+                      ],
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "E5V4ie",
+                          "name": "Cat Left 2",
+                          "gap": 8,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "AuiUR",
+                              "name": "Monitor Icon",
+                              "width": 14,
+                              "height": 14,
+                              "icon": "monitor",
+                              "library": "lucide",
+                              "fill": "#64748B"
+                            },
+                            {
+                              "type": "text",
+                              "id": "kvEyw",
+                              "name": "4K Cat Text",
+                              "fill": "#334155",
+                              "content": "4K 超清专区",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "uezBu",
+                          "name": "Badge Text 2",
+                          "fill": "#94A3B8",
+                          "content": "128",
+                          "fontFamily": "Inter",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "sh2BC",
+                      "name": "Cat Item 3",
+                      "width": "fill_container",
+                      "fill": "#00000000",
+                      "cornerRadius": 7,
+                      "padding": [
+                        7,
+                        10
+                      ],
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "eUeZX",
+                          "name": "Cat Left 3",
+                          "gap": 8,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "beuPw",
+                              "name": "Sun Icon",
+                              "width": 14,
+                              "height": 14,
+                              "icon": "sun",
+                              "library": "lucide",
+                              "fill": "#64748B"
+                            },
+                            {
+                              "type": "text",
+                              "id": "GhYj4",
+                              "name": "Nature Cat Text",
+                              "fill": "#334155",
+                              "content": "自然风光",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "W4BENv",
+                          "name": "Badge Text 3",
+                          "fill": "#94A3B8",
+                          "content": "96",
+                          "fontFamily": "Inter",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "LIVXI",
+                      "name": "Cat Item 4",
+                      "width": "fill_container",
+                      "fill": "#00000000",
+                      "cornerRadius": 7,
+                      "padding": [
+                        7,
+                        10
+                      ],
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "aFmjy",
+                          "name": "Cat Left 4",
+                          "gap": 8,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "AiSMP",
+                              "name": "Palette Icon",
+                              "width": 14,
+                              "height": 14,
+                              "icon": "palette",
+                              "library": "lucide",
+                              "fill": "#64748B"
+                            },
+                            {
+                              "type": "text",
+                              "id": "EvovZ",
+                              "name": "Anime Cat Text",
+                              "fill": "#334155",
+                              "content": "动漫二次元",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "g7BlQ",
+                          "name": "Badge Text 4",
+                          "fill": "#94A3B8",
+                          "content": "64",
+                          "fontFamily": "Inter",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "m6uLG",
+                      "name": "Cat Item 5",
+                      "width": "fill_container",
+                      "fill": "#00000000",
+                      "cornerRadius": 7,
+                      "padding": [
+                        7,
+                        10
+                      ],
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "duJTi",
+                          "name": "Cat Left 5",
+                          "gap": 8,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "knmh4",
+                              "name": "Gamepad Icon",
+                              "width": 14,
+                              "height": 14,
+                              "icon": "gamepad-2",
+                              "library": "lucide",
+                              "fill": "#64748B"
+                            },
+                            {
+                              "type": "text",
+                              "id": "D62RGP",
+                              "name": "Game Cat Text",
+                              "fill": "#334155",
+                              "content": "游戏视觉",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "pDtjh",
+                          "name": "Badge Text 5",
+                          "fill": "#94A3B8",
+                          "content": "52",
+                          "fontFamily": "Inter",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "pf8Vb",
+                      "name": "Cat Item 6",
+                      "width": "fill_container",
+                      "fill": "#00000000",
+                      "cornerRadius": 7,
+                      "padding": [
+                        7,
+                        10
+                      ],
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "gR0nt",
+                          "name": "Cat Left 6",
+                          "gap": 8,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "BVcNd",
+                              "name": "Compass Icon",
+                              "width": 14,
+                              "height": 14,
+                              "icon": "compass",
+                              "library": "lucide",
+                              "fill": "#64748B"
+                            },
+                            {
+                              "type": "text",
+                              "id": "Lqvea",
+                              "name": "Minimal Cat Text",
+                              "fill": "#334155",
+                              "content": "极简清新",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "tHTdf",
+                          "name": "Badge Text 6",
+                          "fill": "#94A3B8",
+                          "content": "48",
+                          "fontFamily": "Inter",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "J13XZ",
+                  "name": "Sidebar Spacer 2",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "fill": "#00000000"
+                },
+                {
+                  "type": "frame",
+                  "id": "XM3wi",
+                  "name": "Sidebar Footer 2",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 10,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "S4gK6",
+                      "name": "Check Update Button 2",
+                      "width": "fill_container",
+                      "height": 32,
+                      "fill": "#FFFFFF",
+                      "cornerRadius": 6,
+                      "stroke": "#D1D5DB",
+                      "strokeWidth": 1,
+                      "gap": 6,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "PN3uE",
+                          "name": "Update Icon 2",
+                          "width": 13,
+                          "height": 13,
+                          "icon": "sparkles",
+                          "library": "lucide",
+                          "fill": "#007AFF"
+                        },
+                        {
+                          "type": "text",
+                          "id": "T7YW6",
+                          "name": "Update Text 2",
+                          "fill": "#1E293B",
+                          "content": "检查更新",
+                          "fontFamily": "Inter",
+                          "fontSize": 12,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "CSD1E",
+                      "name": "Version Label Bottom 2",
+                      "fill": "#94A3B8",
+                      "content": "BGGo Desktop · 已连接微软官方CDN",
+                      "textAlign": "center",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "qBZd2",
+              "name": "Online Gallery Main Area",
+              "width": "fill_container",
+              "height": "fill_container",
+              "fill": "#FFFFFF",
+              "layout": "vertical",
+              "gap": 12,
+              "padding": [
+                18,
+                24
+              ],
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "hhXMs",
+                  "name": "Gallery Top Bar",
+                  "width": "fill_container",
+                  "justifyContent": "space_between",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "Hv2dD",
+                      "name": "Gallery Title Col",
+                      "layout": "vertical",
+                      "gap": 2,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "kyTZt",
+                          "name": "Gallery Title Text",
+                          "fill": "#0F172A",
+                          "content": "在线壁纸 · 必应每日精选",
+                          "fontFamily": "Inter",
+                          "fontSize": 20,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "text",
+                          "id": "jct5g",
+                          "name": "Gallery Sub Title",
+                          "fill": "#64748B",
+                          "content": "微软必应官方精选 · 每日自动同步 · 4K 超高清原图直连",
+                          "fontFamily": "Inter",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "NALgp",
+                      "name": "Gallery Controls Right",
+                      "gap": 8,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "sk5z8",
+                          "name": "Search Input Box",
+                          "width": 180,
+                          "height": 32,
+                          "fill": "#F1F5F9",
+                          "cornerRadius": 6,
+                          "stroke": "#E2E8F0",
+                          "strokeWidth": 1,
+                          "gap": 6,
+                          "padding": [
+                            0,
+                            8
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "geOKT",
+                              "name": "Search Icon",
+                              "width": 13,
+                              "height": 13,
+                              "icon": "search",
+                              "library": "lucide",
+                              "fill": "#94A3B8"
+                            },
+                            {
+                              "type": "text",
+                              "id": "k1qk89",
+                              "name": "Search Placeholder",
+                              "fill": "#94A3B8",
+                              "content": "搜索壁纸关键词…",
+                              "fontFamily": "Inter",
+                              "fontSize": 11,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "npujZ",
+                          "name": "Filter Dropdown",
+                          "height": 32,
+                          "fill": "#F8FAFC",
+                          "cornerRadius": 6,
+                          "stroke": "#CBD5E1",
+                          "strokeWidth": 1,
+                          "gap": 5,
+                          "padding": [
+                            0,
+                            10
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "a9Pfu",
+                              "name": "Filter Text",
+                              "fill": "#334155",
+                              "content": "精选推荐",
+                              "fontFamily": "Inter",
+                              "fontSize": 11,
+                              "fontWeight": "500"
+                            },
+                            {
+                              "type": "icon",
+                              "id": "s3PRgW",
+                              "name": "Filter Chevron",
+                              "width": 11,
+                              "height": 11,
+                              "icon": "chevron-down",
+                              "library": "lucide",
+                              "fill": "#64748B"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "grcVv",
+                  "name": "Wallpaper Grid Container",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "fill": "#F8FAFC",
+                  "cornerRadius": 12,
+                  "stroke": "#E2E8F0",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 12,
+                  "padding": 12,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "OEGVF",
+                      "name": "Grid Row 1",
+                      "width": "fill_container",
+                      "gap": 14,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "CaxXs",
+                          "name": "Card 挪威罗弗敦群岛 · 极光之夜",
+                          "width": "fill_container",
+                          "fill": "#FFFFFF",
+                          "cornerRadius": 10,
+                          "stroke": "#E2E8F0",
+                          "strokeWidth": 1,
+                          "effect": {
+                            "type": "shadow",
+                            "shadowType": "outer",
+                            "color": "#0000000A",
+                            "offset": {
+                              "x": 0,
+                              "y": 1
+                            },
+                            "blur": 3
+                          },
+                          "layout": "vertical",
+                          "gap": 8,
+                          "padding": 8,
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "mMT2s",
+                              "name": "Card Image Box",
+                              "clip": true,
+                              "width": "fill_container",
+                              "height": 118,
+                              "fill": {
+                                "type": "gradient",
+                                "gradientType": "linear",
+                                "enabled": true,
+                                "rotation": 140,
+                                "size": {
+                                  "height": 1
+                                },
+                                "colors": [
+                                  {
+                                    "color": "#0B192C",
+                                    "position": 0
+                                  },
+                                  {
+                                    "color": "#1E3E62",
+                                    "position": 0.5
+                                  },
+                                  {
+                                    "color": "#3B82F6",
+                                    "position": 1
+                                  }
+                                ]
+                              },
+                              "cornerRadius": 6,
+                              "padding": 8,
+                              "justifyContent": "space_between",
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "Xo34W",
+                                  "name": "Badge UHD",
+                                  "fill": "#00000070",
+                                  "cornerRadius": 4,
+                                  "padding": [
+                                    2,
+                                    5
+                                  ],
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "i5JSU",
+                                      "name": "Badge Text",
+                                      "fill": "#FFFFFF",
+                                      "content": "4K UHD",
+                                      "fontFamily": "Inter",
+                                      "fontSize": 9,
+                                      "fontWeight": "700"
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "text",
+                              "id": "nTvZR",
+                              "name": "Card Title",
+                              "fill": "#0F172A",
+                              "content": "挪威罗弗敦群岛 · 极光之夜",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "drUTF",
+                              "name": "Card Button Row",
+                              "width": "fill_container",
+                              "gap": 6,
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "oi9kM",
+                                  "name": "Card Prev Btn",
+                                  "width": "fill_container",
+                                  "height": 28,
+                                  "fill": "#F1F5F9",
+                                  "cornerRadius": 6,
+                                  "stroke": "#CBD5E1",
+                                  "strokeWidth": 1,
+                                  "gap": 4,
+                                  "justifyContent": "center",
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "icon",
+                                      "id": "RYxUA",
+                                      "name": "Eye Icon",
+                                      "width": 11,
+                                      "height": 11,
+                                      "icon": "maximize-2",
+                                      "library": "lucide",
+                                      "fill": "#475569"
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "dTf6K",
+                                      "name": "Prev Text",
+                                      "fill": "#475569",
+                                      "content": "预览",
+                                      "fontFamily": "Inter",
+                                      "fontSize": 11,
+                                      "fontWeight": "500"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "tezZo",
+                                  "name": "Card Apply Btn",
+                                  "width": "fill_container",
+                                  "height": 28,
+                                  "fill": "#007AFF",
+                                  "cornerRadius": 6,
+                                  "gap": 4,
+                                  "justifyContent": "center",
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "icon",
+                                      "id": "j6FLQ",
+                                      "name": "Apply Icon",
+                                      "width": 11,
+                                      "height": 11,
+                                      "icon": "check",
+                                      "library": "lucide",
+                                      "fill": "#FFFFFF"
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "YWcpf",
+                                      "name": "Apply Text",
+                                      "fill": "#FFFFFF",
+                                      "content": "应用",
+                                      "fontFamily": "Inter",
+                                      "fontSize": 11,
+                                      "fontWeight": "600"
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "cXQR6",
+                          "name": "Card 瑞士阿尔卑斯山 · 金色晨曦",
+                          "width": "fill_container",
+                          "fill": "#FFFFFF",
+                          "cornerRadius": 10,
+                          "stroke": "#E2E8F0",
+                          "strokeWidth": 1,
+                          "effect": {
+                            "type": "shadow",
+                            "shadowType": "outer",
+                            "color": "#0000000A",
+                            "offset": {
+                              "x": 0,
+                              "y": 1
+                            },
+                            "blur": 3
+                          },
+                          "layout": "vertical",
+                          "gap": 8,
+                          "padding": 8,
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "jzA5t",
+                              "name": "Card Image Box",
+                              "clip": true,
+                              "width": "fill_container",
+                              "height": 118,
+                              "fill": {
+                                "type": "gradient",
+                                "gradientType": "linear",
+                                "enabled": true,
+                                "rotation": 140,
+                                "size": {
+                                  "height": 1
+                                },
+                                "colors": [
+                                  {
+                                    "color": "#78350F",
+                                    "position": 0
+                                  },
+                                  {
+                                    "color": "#D97706",
+                                    "position": 0.5
+                                  },
+                                  {
+                                    "color": "#FDE68A",
+                                    "position": 1
+                                  }
+                                ]
+                              },
+                              "cornerRadius": 6,
+                              "padding": 8,
+                              "justifyContent": "space_between",
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "ZfFUo",
+                                  "name": "Badge UHD",
+                                  "fill": "#00000070",
+                                  "cornerRadius": 4,
+                                  "padding": [
+                                    2,
+                                    5
+                                  ],
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "xynGI",
+                                      "name": "Badge Text",
+                                      "fill": "#FFFFFF",
+                                      "content": "4K UHD",
+                                      "fontFamily": "Inter",
+                                      "fontSize": 9,
+                                      "fontWeight": "700"
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "text",
+                              "id": "a5JSDK",
+                              "name": "Card Title",
+                              "fill": "#0F172A",
+                              "content": "瑞士阿尔卑斯山 · 金色晨曦",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "gVGQC",
+                              "name": "Card Button Row",
+                              "width": "fill_container",
+                              "gap": 6,
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "nyCfB",
+                                  "name": "Card Prev Btn",
+                                  "width": "fill_container",
+                                  "height": 28,
+                                  "fill": "#F1F5F9",
+                                  "cornerRadius": 6,
+                                  "stroke": "#CBD5E1",
+                                  "strokeWidth": 1,
+                                  "gap": 4,
+                                  "justifyContent": "center",
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "icon",
+                                      "id": "h0uB39",
+                                      "name": "Eye Icon",
+                                      "width": 11,
+                                      "height": 11,
+                                      "icon": "maximize-2",
+                                      "library": "lucide",
+                                      "fill": "#475569"
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "Q4kBH",
+                                      "name": "Prev Text",
+                                      "fill": "#475569",
+                                      "content": "预览",
+                                      "fontFamily": "Inter",
+                                      "fontSize": 11,
+                                      "fontWeight": "500"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "xkEsa",
+                                  "name": "Card Apply Btn",
+                                  "width": "fill_container",
+                                  "height": 28,
+                                  "fill": "#007AFF",
+                                  "cornerRadius": 6,
+                                  "gap": 4,
+                                  "justifyContent": "center",
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "icon",
+                                      "id": "XVAaY",
+                                      "name": "Apply Icon",
+                                      "width": 11,
+                                      "height": 11,
+                                      "icon": "check",
+                                      "library": "lucide",
+                                      "fill": "#FFFFFF"
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "o0TfH",
+                                      "name": "Apply Text",
+                                      "fill": "#FFFFFF",
+                                      "content": "应用",
+                                      "fontFamily": "Inter",
+                                      "fontSize": 11,
+                                      "fontWeight": "600"
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "dFPKU",
+                          "name": "Card 京都岚山竹林 · 晨雾漫步",
+                          "width": "fill_container",
+                          "fill": "#FFFFFF",
+                          "cornerRadius": 10,
+                          "stroke": "#E2E8F0",
+                          "strokeWidth": 1,
+                          "effect": {
+                            "type": "shadow",
+                            "shadowType": "outer",
+                            "color": "#0000000A",
+                            "offset": {
+                              "x": 0,
+                              "y": 1
+                            },
+                            "blur": 3
+                          },
+                          "layout": "vertical",
+                          "gap": 8,
+                          "padding": 8,
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "qFUq3",
+                              "name": "Card Image Box",
+                              "clip": true,
+                              "width": "fill_container",
+                              "height": 118,
+                              "fill": {
+                                "type": "gradient",
+                                "gradientType": "linear",
+                                "enabled": true,
+                                "rotation": 140,
+                                "size": {
+                                  "height": 1
+                                },
+                                "colors": [
+                                  {
+                                    "color": "#064E3B",
+                                    "position": 0
+                                  },
+                                  {
+                                    "color": "#059669",
+                                    "position": 0.5
+                                  },
+                                  {
+                                    "color": "#34D399",
+                                    "position": 1
+                                  }
+                                ]
+                              },
+                              "cornerRadius": 6,
+                              "padding": 8,
+                              "justifyContent": "space_between",
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "P9K30V",
+                                  "name": "Badge UHD",
+                                  "fill": "#00000070",
+                                  "cornerRadius": 4,
+                                  "padding": [
+                                    2,
+                                    5
+                                  ],
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "i4E4KH",
+                                      "name": "Badge Text",
+                                      "fill": "#FFFFFF",
+                                      "content": "4K UHD",
+                                      "fontFamily": "Inter",
+                                      "fontSize": 9,
+                                      "fontWeight": "700"
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "text",
+                              "id": "NH3IB",
+                              "name": "Card Title",
+                              "fill": "#0F172A",
+                              "content": "京都岚山竹林 · 晨雾漫步",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "Sli8Y",
+                              "name": "Card Button Row",
+                              "width": "fill_container",
+                              "gap": 6,
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "eqOoc",
+                                  "name": "Card Prev Btn",
+                                  "width": "fill_container",
+                                  "height": 28,
+                                  "fill": "#F1F5F9",
+                                  "cornerRadius": 6,
+                                  "stroke": "#CBD5E1",
+                                  "strokeWidth": 1,
+                                  "gap": 4,
+                                  "justifyContent": "center",
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "icon",
+                                      "id": "z3a3W",
+                                      "name": "Eye Icon",
+                                      "width": 11,
+                                      "height": 11,
+                                      "icon": "maximize-2",
+                                      "library": "lucide",
+                                      "fill": "#475569"
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "P671D9",
+                                      "name": "Prev Text",
+                                      "fill": "#475569",
+                                      "content": "预览",
+                                      "fontFamily": "Inter",
+                                      "fontSize": 11,
+                                      "fontWeight": "500"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "vpnrb",
+                                  "name": "Card Apply Btn",
+                                  "width": "fill_container",
+                                  "height": 28,
+                                  "fill": "#007AFF",
+                                  "cornerRadius": 6,
+                                  "gap": 4,
+                                  "justifyContent": "center",
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "icon",
+                                      "id": "XaLuU",
+                                      "name": "Apply Icon",
+                                      "width": 11,
+                                      "height": 11,
+                                      "icon": "check",
+                                      "library": "lucide",
+                                      "fill": "#FFFFFF"
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "t4CxA",
+                                      "name": "Apply Text",
+                                      "fill": "#FFFFFF",
+                                      "content": "应用",
+                                      "fontFamily": "Inter",
+                                      "fontSize": 11,
+                                      "fontWeight": "600"
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "bEufU",
+                      "name": "Grid Row 2",
+                      "width": "fill_container",
+                      "gap": 14,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "vvdH2",
+                          "name": "Card 冰岛钻石沙滩 · 晶莹碎冰",
+                          "width": "fill_container",
+                          "fill": "#FFFFFF",
+                          "cornerRadius": 10,
+                          "stroke": "#E2E8F0",
+                          "strokeWidth": 1,
+                          "effect": {
+                            "type": "shadow",
+                            "shadowType": "outer",
+                            "color": "#0000000A",
+                            "offset": {
+                              "x": 0,
+                              "y": 1
+                            },
+                            "blur": 3
+                          },
+                          "layout": "vertical",
+                          "gap": 8,
+                          "padding": 8,
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "uWePt",
+                              "name": "Card Image Box",
+                              "clip": true,
+                              "width": "fill_container",
+                              "height": 118,
+                              "fill": {
+                                "type": "gradient",
+                                "gradientType": "linear",
+                                "enabled": true,
+                                "rotation": 140,
+                                "size": {
+                                  "height": 1
+                                },
+                                "colors": [
+                                  {
+                                    "color": "#0F172A",
+                                    "position": 0
+                                  },
+                                  {
+                                    "color": "#38BDF8",
+                                    "position": 0.6
+                                  },
+                                  {
+                                    "color": "#E0F2FE",
+                                    "position": 1
+                                  }
+                                ]
+                              },
+                              "cornerRadius": 6,
+                              "padding": 8,
+                              "justifyContent": "space_between",
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "JSEIu",
+                                  "name": "Badge UHD",
+                                  "fill": "#00000070",
+                                  "cornerRadius": 4,
+                                  "padding": [
+                                    2,
+                                    5
+                                  ],
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "O2t27m",
+                                      "name": "Badge Text",
+                                      "fill": "#FFFFFF",
+                                      "content": "4K UHD",
+                                      "fontFamily": "Inter",
+                                      "fontSize": 9,
+                                      "fontWeight": "700"
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "text",
+                              "id": "UBr7U",
+                              "name": "Card Title",
+                              "fill": "#0F172A",
+                              "content": "冰岛钻石沙滩 · 晶莹碎冰",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "iFcuM",
+                              "name": "Card Button Row",
+                              "width": "fill_container",
+                              "gap": 6,
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "MEOmV",
+                                  "name": "Card Prev Btn",
+                                  "width": "fill_container",
+                                  "height": 28,
+                                  "fill": "#F1F5F9",
+                                  "cornerRadius": 6,
+                                  "stroke": "#CBD5E1",
+                                  "strokeWidth": 1,
+                                  "gap": 4,
+                                  "justifyContent": "center",
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "icon",
+                                      "id": "B3YcBG",
+                                      "name": "Eye Icon",
+                                      "width": 11,
+                                      "height": 11,
+                                      "icon": "maximize-2",
+                                      "library": "lucide",
+                                      "fill": "#475569"
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "B4Fc6N",
+                                      "name": "Prev Text",
+                                      "fill": "#475569",
+                                      "content": "预览",
+                                      "fontFamily": "Inter",
+                                      "fontSize": 11,
+                                      "fontWeight": "500"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "H9tzJN",
+                                  "name": "Card Apply Btn",
+                                  "width": "fill_container",
+                                  "height": 28,
+                                  "fill": "#007AFF",
+                                  "cornerRadius": 6,
+                                  "gap": 4,
+                                  "justifyContent": "center",
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "icon",
+                                      "id": "PyUzr",
+                                      "name": "Apply Icon",
+                                      "width": 11,
+                                      "height": 11,
+                                      "icon": "check",
+                                      "library": "lucide",
+                                      "fill": "#FFFFFF"
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "Wp2KL",
+                                      "name": "Apply Text",
+                                      "fill": "#FFFFFF",
+                                      "content": "应用",
+                                      "fontFamily": "Inter",
+                                      "fontSize": 11,
+                                      "fontWeight": "600"
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "ZDmkY",
+                          "name": "Card 东京涉谷街头 · 赛博光影",
+                          "width": "fill_container",
+                          "fill": "#FFFFFF",
+                          "cornerRadius": 10,
+                          "stroke": "#E2E8F0",
+                          "strokeWidth": 1,
+                          "effect": {
+                            "type": "shadow",
+                            "shadowType": "outer",
+                            "color": "#0000000A",
+                            "offset": {
+                              "x": 0,
+                              "y": 1
+                            },
+                            "blur": 3
+                          },
+                          "layout": "vertical",
+                          "gap": 8,
+                          "padding": 8,
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "uiWCR",
+                              "name": "Card Image Box",
+                              "clip": true,
+                              "width": "fill_container",
+                              "height": 118,
+                              "fill": {
+                                "type": "gradient",
+                                "gradientType": "linear",
+                                "enabled": true,
+                                "rotation": 140,
+                                "size": {
+                                  "height": 1
+                                },
+                                "colors": [
+                                  {
+                                    "color": "#3B0764",
+                                    "position": 0
+                                  },
+                                  {
+                                    "color": "#9333EA",
+                                    "position": 0.5
+                                  },
+                                  {
+                                    "color": "#EC4899",
+                                    "position": 1
+                                  }
+                                ]
+                              },
+                              "cornerRadius": 6,
+                              "padding": 8,
+                              "justifyContent": "space_between",
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "MXXNs",
+                                  "name": "Badge UHD",
+                                  "fill": "#00000070",
+                                  "cornerRadius": 4,
+                                  "padding": [
+                                    2,
+                                    5
+                                  ],
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "i3aBmr",
+                                      "name": "Badge Text",
+                                      "fill": "#FFFFFF",
+                                      "content": "4K UHD",
+                                      "fontFamily": "Inter",
+                                      "fontSize": 9,
+                                      "fontWeight": "700"
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "text",
+                              "id": "cyVu9",
+                              "name": "Card Title",
+                              "fill": "#0F172A",
+                              "content": "东京涉谷街头 · 赛博光影",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "FMpWp",
+                              "name": "Card Button Row",
+                              "width": "fill_container",
+                              "gap": 6,
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "cDv71",
+                                  "name": "Card Prev Btn",
+                                  "width": "fill_container",
+                                  "height": 28,
+                                  "fill": "#F1F5F9",
+                                  "cornerRadius": 6,
+                                  "stroke": "#CBD5E1",
+                                  "strokeWidth": 1,
+                                  "gap": 4,
+                                  "justifyContent": "center",
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "icon",
+                                      "id": "k9oEw",
+                                      "name": "Eye Icon",
+                                      "width": 11,
+                                      "height": 11,
+                                      "icon": "maximize-2",
+                                      "library": "lucide",
+                                      "fill": "#475569"
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "XnUL4",
+                                      "name": "Prev Text",
+                                      "fill": "#475569",
+                                      "content": "预览",
+                                      "fontFamily": "Inter",
+                                      "fontSize": 11,
+                                      "fontWeight": "500"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "dCGg2",
+                                  "name": "Card Apply Btn",
+                                  "width": "fill_container",
+                                  "height": 28,
+                                  "fill": "#007AFF",
+                                  "cornerRadius": 6,
+                                  "gap": 4,
+                                  "justifyContent": "center",
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "icon",
+                                      "id": "Eb77S",
+                                      "name": "Apply Icon",
+                                      "width": 11,
+                                      "height": 11,
+                                      "icon": "check",
+                                      "library": "lucide",
+                                      "fill": "#FFFFFF"
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "zw0vJ",
+                                      "name": "Apply Text",
+                                      "fill": "#FFFFFF",
+                                      "content": "应用",
+                                      "fontFamily": "Inter",
+                                      "fontSize": 11,
+                                      "fontWeight": "600"
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "vSPPZ",
+                          "name": "Card 多洛米蒂山脉 · 晚霞峰峦",
+                          "width": "fill_container",
+                          "fill": "#FFFFFF",
+                          "cornerRadius": 10,
+                          "stroke": "#E2E8F0",
+                          "strokeWidth": 1,
+                          "effect": {
+                            "type": "shadow",
+                            "shadowType": "outer",
+                            "color": "#0000000A",
+                            "offset": {
+                              "x": 0,
+                              "y": 1
+                            },
+                            "blur": 3
+                          },
+                          "layout": "vertical",
+                          "gap": 8,
+                          "padding": 8,
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "AuImk",
+                              "name": "Card Image Box",
+                              "clip": true,
+                              "width": "fill_container",
+                              "height": 118,
+                              "fill": {
+                                "type": "gradient",
+                                "gradientType": "linear",
+                                "enabled": true,
+                                "rotation": 140,
+                                "size": {
+                                  "height": 1
+                                },
+                                "colors": [
+                                  {
+                                    "color": "#4C0519",
+                                    "position": 0
+                                  },
+                                  {
+                                    "color": "#BE123C",
+                                    "position": 0.5
+                                  },
+                                  {
+                                    "color": "#FB7185",
+                                    "position": 1
+                                  }
+                                ]
+                              },
+                              "cornerRadius": 6,
+                              "padding": 8,
+                              "justifyContent": "space_between",
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "c91Dk",
+                                  "name": "Badge UHD",
+                                  "fill": "#00000070",
+                                  "cornerRadius": 4,
+                                  "padding": [
+                                    2,
+                                    5
+                                  ],
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "E2jNc",
+                                      "name": "Badge Text",
+                                      "fill": "#FFFFFF",
+                                      "content": "4K UHD",
+                                      "fontFamily": "Inter",
+                                      "fontSize": 9,
+                                      "fontWeight": "700"
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "text",
+                              "id": "UuQXg",
+                              "name": "Card Title",
+                              "fill": "#0F172A",
+                              "content": "多洛米蒂山脉 · 晚霞峰峦",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "aW21I",
+                              "name": "Card Button Row",
+                              "width": "fill_container",
+                              "gap": 6,
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "ZqHZd",
+                                  "name": "Card Prev Btn",
+                                  "width": "fill_container",
+                                  "height": 28,
+                                  "fill": "#F1F5F9",
+                                  "cornerRadius": 6,
+                                  "stroke": "#CBD5E1",
+                                  "strokeWidth": 1,
+                                  "gap": 4,
+                                  "justifyContent": "center",
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "icon",
+                                      "id": "rygke",
+                                      "name": "Eye Icon",
+                                      "width": 11,
+                                      "height": 11,
+                                      "icon": "maximize-2",
+                                      "library": "lucide",
+                                      "fill": "#475569"
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "PTCYX",
+                                      "name": "Prev Text",
+                                      "fill": "#475569",
+                                      "content": "预览",
+                                      "fontFamily": "Inter",
+                                      "fontSize": 11,
+                                      "fontWeight": "500"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "GMChR",
+                                  "name": "Card Apply Btn",
+                                  "width": "fill_container",
+                                  "height": 28,
+                                  "fill": "#007AFF",
+                                  "cornerRadius": 6,
+                                  "gap": 4,
+                                  "justifyContent": "center",
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "icon",
+                                      "id": "tDZ48",
+                                      "name": "Apply Icon",
+                                      "width": 11,
+                                      "height": 11,
+                                      "icon": "check",
+                                      "library": "lucide",
+                                      "fill": "#FFFFFF"
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "Yysw2",
+                                      "name": "Apply Text",
+                                      "fill": "#FFFFFF",
+                                      "content": "应用",
+                                      "fontFamily": "Inter",
+                                      "fontSize": 11,
+                                      "fontWeight": "600"
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "pUXAc",
+                  "name": "Gallery Bottom Bar",
+                  "width": "fill_container",
+                  "padding": [
+                    2,
+                    0,
+                    0,
+                    0
+                  ],
+                  "justifyContent": "space_between",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "rhvfj",
+                      "name": "Gallery Status",
+                      "gap": 6,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "ellipse",
+                          "id": "r7b6Pr",
+                          "name": "Green Status Dot",
+                          "fill": "#10B981",
+                          "width": 7,
+                          "height": 7
+                        },
+                        {
+                          "type": "text",
+                          "id": "u50uC",
+                          "name": "Status Text",
+                          "fill": "#64748B",
+                          "content": "已拉取必应今日精选 · 共 8 张壁纸",
+                          "fontFamily": "Inter",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "jJOCw",
+                      "name": "Pagination Cluster",
+                      "gap": 6,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "EDn6S",
+                          "name": "Prev Page Btn",
+                          "height": 30,
+                          "fill": "#F8FAFC",
+                          "cornerRadius": 6,
+                          "stroke": "#E2E8F0",
+                          "strokeWidth": 1,
+                          "gap": 4,
+                          "padding": [
+                            0,
+                            10
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "j3ritn",
+                              "name": "Prev Icon",
+                              "width": 12,
+                              "height": 12,
+                              "icon": "chevron-left",
+                              "library": "lucide",
+                              "fill": "#94A3B8"
+                            },
+                            {
+                              "type": "text",
+                              "id": "SY3up",
+                              "name": "Prev Text",
+                              "fill": "#94A3B8",
+                              "content": "上一页",
+                              "fontFamily": "Inter",
+                              "fontSize": 11,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "QnFQO",
+                          "name": "Page Indicator",
+                          "padding": [
+                            0,
+                            8
+                          ],
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "PI4qA",
+                              "name": "Page Text",
+                              "fill": "#1E293B",
+                              "content": "第 1 / 3 页",
+                              "fontFamily": "Inter",
+                              "fontSize": 11,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "s2RIG",
+                          "name": "Next Page Btn",
+                          "height": 30,
+                          "fill": "#FFFFFF",
+                          "cornerRadius": 6,
+                          "stroke": "#CBD5E1",
+                          "strokeWidth": 1,
+                          "gap": 4,
+                          "padding": [
+                            0,
+                            10
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "TGL3f",
+                              "name": "Next Text",
+                              "fill": "#334155",
+                              "content": "下一页",
+                              "fontFamily": "Inter",
+                              "fontSize": 11,
+                              "fontWeight": "500"
+                            },
+                            {
+                              "type": "icon",
+                              "id": "GQiW9",
+                              "name": "Next Icon",
+                              "width": 12,
+                              "height": 12,
+                              "icon": "chevron-right",
+                              "library": "lucide",
+                              "fill": "#334155"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "fileToken": "de3b82d9-b659-44a2-9472-5915203aaae2"
+}
