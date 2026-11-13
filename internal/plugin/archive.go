@@ -78,7 +78,10 @@ func InstallArchive(path, root string) (Manifest, error) {
 		if err := os.MkdirAll(historyDir, 0o700); err != nil {
 			return Manifest{}, fmt.Errorf("创建插件历史目录失败: %w", err)
 		}
-		previous = filepath.Join(historyDir, historyName(previousVersion))
+		previous, err = uniqueHistoryPath(historyDir, previousVersion)
+		if err != nil {
+			return Manifest{}, fmt.Errorf("创建插件历史路径失败: %w", err)
+		}
 		if err := os.Rename(target, previous); err != nil {
 			return Manifest{}, fmt.Errorf("备份旧插件失败: %w", err)
 		}
@@ -150,7 +153,10 @@ func Rollback(root, id, versionID string) (Manifest, error) {
 	if _, err := os.Stat(target); err != nil {
 		return Manifest{}, fmt.Errorf("当前插件不存在: %w", err)
 	}
-	historyTarget := filepath.Join(root, ".history", id, historyName(manifest.Version))
+	historyTarget, err := uniqueHistoryPath(filepath.Join(root, ".history", id), manifest.Version)
+	if err != nil {
+		return Manifest{}, fmt.Errorf("创建插件历史路径失败: %w", err)
+	}
 	if err := os.Rename(target, historyTarget); err != nil {
 		return Manifest{}, fmt.Errorf("保存当前插件版本失败: %w", err)
 	}
@@ -164,6 +170,23 @@ func Rollback(root, id, versionID string) (Manifest, error) {
 func historyName(version string) string {
 	version = strings.NewReplacer("/", "_", "\\", "_", ":", "_").Replace(version)
 	return time.Now().UTC().Format("20060102T150405.000000000Z") + "-" + version
+}
+
+func uniqueHistoryPath(historyDir, version string) (string, error) {
+	base := historyName(version)
+	for index := 0; index < 1000; index++ {
+		name := base
+		if index > 0 {
+			name = fmt.Sprintf("%s-%d", base, index)
+		}
+		candidate := filepath.Join(historyDir, name)
+		if _, err := os.Lstat(candidate); errors.Is(err, os.ErrNotExist) {
+			return candidate, nil
+		} else if err != nil {
+			return "", err
+		}
+	}
+	return "", errors.New("插件历史版本目录冲突过多")
 }
 
 // RemoveInstalled removes only the plugin package. Runtime data is kept in a

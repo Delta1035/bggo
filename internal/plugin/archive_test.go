@@ -97,6 +97,21 @@ func TestInstallArchiveKeepsHistoryAndRollsBack(t *testing.T) {
 	}
 }
 
+func TestUniqueHistoryPathAvoidsExistingDirectory(t *testing.T) {
+	historyDir := t.TempDir()
+	base := historyName("1.0.0")
+	if err := os.Mkdir(filepath.Join(historyDir, base), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	path, err := uniqueHistoryPath(historyDir, "1.0.0")
+	if err != nil {
+		t.Fatalf("uniqueHistoryPath() failed: %v", err)
+	}
+	if filepath.Base(path) == base {
+		t.Fatalf("uniqueHistoryPath() reused existing path %q", path)
+	}
+}
+
 func TestInspectArchiveRejectsUnsafeEntries(t *testing.T) {
 	validManifest := []byte(`{"type":"bggo-wallpaper","apiVersion":1,"id":"unsafe-demo","name":"Unsafe","version":"1.0.0","main":"index.js"}`)
 	tests := []struct {
