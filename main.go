@@ -78,6 +78,8 @@ type application struct {
 	pluginState               plugin.EnabledState
 	pluginMetaPath            string
 	pluginMetadata            plugin.MetadataState
+	pluginCatalogClient       *plugin.CatalogClient
+	pluginUpdates             map[string]plugin.CatalogEntry
 	pendingPluginZip          string
 	pendingManifest           *plugin.Manifest
 	pendingPermissionExpanded bool

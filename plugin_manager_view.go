@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"bggo/internal/icons"
+	"bggo/internal/plugin"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 	breeze "github.com/yldm-tech/mygo-breeze-ui/ui/breeze"
@@ -16,16 +17,25 @@ func (a *application) drawPluginManager(c *ui.Context, t *ui.Theme) {
 				ui.Text(c, "壁纸插件管理").FontSize(20).Bold().TextColor(ui.Hex("#0F172A"))
 				ui.Text(c, "像 MyGo Music 一样，通过插件扩展壁纸源").FontSize(12).TextColor(ui.Hex("#64748B"))
 			})
-			upload := ui.ButtonBase(c.Key("plugin-upload")).Height(34).Padding(0, 14).Radius(8).Background(ui.Hex("#007AFF"))
-			upload.Children(func() {
-				ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() {
-					ui.Icon(c, icons.Download).Size(14, 14).TextColor(ui.Hex("#FFFFFF"))
-					ui.Text(c, "上传插件包").FontSize(12).Bold().TextColor(ui.Hex("#FFFFFF"))
+			ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
+				check := ui.ButtonBase(c.Key("plugin-check-updates")).Height(34).Padding(0, 12).Radius(8).Background(ui.Hex("#F8FAFC")).Border(1, ui.Hex("#E2E8F0"))
+				check.Children(func() {
+					ui.Text(c, "检查更新").FontSize(12).Bold().TextColor(ui.Hex("#334155"))
 				})
+				if check.Clicked() && !a.busy {
+					a.checkPluginUpdates()
+				}
+				upload := ui.ButtonBase(c.Key("plugin-upload")).Height(34).Padding(0, 14).Radius(8).Background(ui.Hex("#007AFF"))
+				upload.Children(func() {
+					ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() {
+						ui.Icon(c, icons.Download).Size(14, 14).TextColor(ui.Hex("#FFFFFF"))
+						ui.Text(c, "上传插件包").FontSize(12).Bold().TextColor(ui.Hex("#FFFFFF"))
+					})
+				})
+				if upload.Clicked() {
+					a.choosePluginArchive()
+				}
 			})
-			if upload.Clicked() {
-				a.choosePluginArchive()
-			}
 		})
 
 		ui.Box(c).FillWidth().Padding(12, 14).Radius(10).Background(ui.Hex("#F8FAFC")).Border(1, ui.Hex("#E2E8F0")).Children(func() {
@@ -123,8 +133,13 @@ func (a *application) drawPluginCard(c *ui.Context, record *managedPlugin) {
 					ui.Text(c, record.Manifest.ID).FontSize(10).TextColor(ui.Hex("#94A3B8"))
 				})
 				sourceText := pluginSourceLabel(record)
-				if metadata, ok := a.pluginMetadata[record.Manifest.ID]; ok && !metadata.InstalledAt.IsZero() {
-					sourceText += " · " + metadata.InstalledAt.Local().Format("2006-01-02 15:04")
+				if metadata, ok := a.pluginMetadata[record.Manifest.ID]; ok {
+					if metadata.Source == "catalog" {
+						sourceText = "在线目录"
+					}
+					if !metadata.InstalledAt.IsZero() {
+						sourceText += " · " + metadata.InstalledAt.Local().Format("2006-01-02 15:04")
+					}
 				}
 				ui.Text(c, fmt.Sprintf("版本 %s · %s", record.Manifest.Version, sourceText)).FontSize(11).TextColor(ui.Hex("#64748B"))
 				ui.Text(c, pluginNetworkText(record.Manifest)).FontSize(11).TextColor(ui.Hex("#64748B")).SingleLine()
@@ -144,6 +159,18 @@ func (a *application) drawPluginCard(c *ui.Context, record *managedPlugin) {
 							go a.confirmRollbackPlugin(record.Manifest.ID, record.Manifest.Name, version.ID, version.Manifest.Version)
 						}
 					})
+					if update, ok := a.pluginUpdates[record.Manifest.ID]; ok {
+						ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
+							ui.Text(c, "发现新版本 "+update.Manifest.Version).FontSize(11).Bold().TextColor(ui.Hex("#2563EB"))
+							updateButton := ui.ButtonBase(c.Key("plugin-update-"+record.Manifest.ID)).Height(24).Padding(0, 8).Radius(5).Background(ui.Hex("#EFF6FF")).Border(1, ui.Hex("#BFDBFE")).Disabled(a.busy)
+							updateButton.Children(func() {
+								ui.Text(c, "更新").FontSize(10).Bold().TextColor(ui.Hex("#2563EB"))
+							})
+							if updateButton.Clicked() && !a.busy {
+								go a.confirmRemotePluginUpdate(update)
+							}
+						})
+					}
 				}
 				if record.Error != "" {
 					ui.Text(c, "状态："+record.Error).FontSize(11).TextColor(ui.Hex("#DC2626")).SingleLine()
@@ -228,6 +255,27 @@ func (a *application) confirmRollbackPlugin(id, name, versionID, version string)
 		a.pluginStatus = fmt.Sprintf("插件 %s 已回滚到 %s", name, version)
 		a.error = false
 	})
+}
+
+func (a *application) confirmRemotePluginUpdate(entry plugin.CatalogEntry) {
+	permissionExpanded := a.permissionExpanded(entry.Manifest)
+	detail := "插件包已通过签名目录校验，安装后仍可随时停用。"
+	if permissionExpanded {
+		detail = "此更新会扩大网络权限；插件包已通过签名目录校验，确认后才会安装。"
+	}
+	result, err := mygo.Dialog.Message(mygo.MessageOptions{
+		Parent:             a.window,
+		Type:               mygo.MessageWarning,
+		Title:              "更新插件",
+		Message:            fmt.Sprintf("确定将 %s 更新到 %s？", entry.Manifest.Name, entry.Manifest.Version),
+		Detail:             detail,
+		Buttons:            []string{"更新", "取消"},
+		DestructiveButtons: []int{0},
+		CancelButton:       1,
+	})
+	if err == nil && result.Button == 0 {
+		a.updatePluginFromCatalog(entry)
+	}
 }
 
 func pluginSourceLabel(record *managedPlugin) string {

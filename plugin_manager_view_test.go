@@ -13,6 +13,7 @@ func TestPluginManagerViewShowsBuiltinsAndInstallEntry(t *testing.T) {
 	for _, text := range []string{
 		"插件管理",
 		"壁纸插件管理",
+		"检查更新",
 		"上传插件包",
 		"安全安装本地插件",
 		"必应每日精选",

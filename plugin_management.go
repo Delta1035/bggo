@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -29,6 +30,7 @@ func (a *application) initPluginManagement() {
 	a.pluginRecords = make(map[string]*managedPlugin)
 	a.pluginState = plugin.EnabledState{}
 	a.pluginMetadata = plugin.MetadataState{}
+	a.pluginUpdates = make(map[string]plugin.CatalogEntry)
 	configDir, err := os.UserConfigDir()
 	if err != nil {
 		a.pluginStatus = "无法确定插件配置目录: " + err.Error()
@@ -51,6 +53,17 @@ func (a *application) initPluginManagement() {
 		return
 	}
 	a.pluginMetadata = metadata
+	catalogURL := strings.TrimSpace(os.Getenv("BGGO_PLUGIN_CATALOG_URL"))
+	catalogKey := strings.TrimSpace(os.Getenv("BGGO_PLUGIN_CATALOG_PUBLIC_KEY"))
+	if catalogURL != "" || catalogKey != "" {
+		client, clientErr := plugin.NewCatalogClient(catalogURL, catalogKey, nil)
+		if clientErr != nil {
+			a.pluginStatus = "插件目录配置无效: " + clientErr.Error()
+			a.error = true
+		} else {
+			a.pluginCatalogClient = client
+		}
+	}
 }
 
 func (a *application) registerBuiltinPluginRecords() {
@@ -334,6 +347,117 @@ func (a *application) installPendingPlugin() {
 			a.pendingManifest = nil
 			a.pendingPermissionExpanded = false
 			a.pluginStatus = "插件已安装并启用: " + manifest.Name
+			a.error = false
+		})
+	}()
+}
+
+func (a *application) checkPluginUpdates() {
+	if a.pluginCatalogClient == nil {
+		a.pluginStatus = "未配置插件目录，请设置 BGGO_PLUGIN_CATALOG_URL 和 BGGO_PLUGIN_CATALOG_PUBLIC_KEY"
+		a.error = true
+		return
+	}
+	a.update(func() {
+		a.busy = true
+		a.pluginStatus = "正在检查插件更新…"
+		a.error = false
+	})
+	go func() {
+		catalog, err := a.pluginCatalogClient.Fetch(context.Background())
+		a.update(func() {
+			a.busy = false
+			if err != nil {
+				a.pluginStatus = "检查插件更新失败: " + err.Error()
+				a.error = true
+				return
+			}
+			updates := make(map[string]plugin.CatalogEntry)
+			for _, entry := range catalog.Plugins {
+				record := a.pluginRecords[entry.Manifest.ID]
+				if record == nil || record.Builtin {
+					continue
+				}
+				if plugin.CompareVersions(entry.Manifest.Version, record.Manifest.Version) > 0 {
+					updates[entry.Manifest.ID] = entry
+				}
+			}
+			a.pluginUpdates = updates
+			if len(updates) == 0 {
+				a.pluginStatus = "插件已是最新版本"
+			} else {
+				a.pluginStatus = fmt.Sprintf("发现 %d 个插件更新", len(updates))
+			}
+			a.error = false
+		})
+	}()
+}
+
+func (a *application) installDownloadedPlugin(path string, expected plugin.CatalogEntry) error {
+	manifest, err := plugin.InspectArchive(path)
+	if err != nil {
+		return err
+	}
+	if manifest.ID != expected.Manifest.ID || manifest.Version != expected.Manifest.Version {
+		return errors.New("下载插件的 manifest 与目录记录不一致")
+	}
+	if err := plugin.CheckCompatibility(manifest, AppVersion); err != nil {
+		return err
+	}
+	installed, err := plugin.InstallArchive(path, a.pluginRoot)
+	if err != nil {
+		return err
+	}
+	if err := a.installPluginRecord(installed); err != nil {
+		return err
+	}
+	metadata := a.pluginMetadata[manifest.ID]
+	metadata.Source = "catalog"
+	metadata.Version = manifest.Version
+	metadata.Network = append([]string(nil), manifest.Permissions.Network...)
+	a.pluginMetadata[manifest.ID] = metadata
+	if a.pluginMetaPath != "" {
+		if err := plugin.SaveMetadata(a.pluginMetaPath, a.pluginMetadata); err != nil {
+			return fmt.Errorf("保存插件来源记录失败: %w", err)
+		}
+	}
+	delete(a.pluginUpdates, manifest.ID)
+	return nil
+}
+
+func (a *application) updatePluginFromCatalog(entry plugin.CatalogEntry) {
+	if a.pluginCatalogClient == nil || a.pluginRoot == "" {
+		a.pluginStatus = "插件目录尚未配置"
+		a.error = true
+		return
+	}
+	a.update(func() {
+		a.busy = true
+		a.pluginStatus = "正在下载插件更新…"
+		a.error = false
+	})
+	go func() {
+		tempDir, err := os.MkdirTemp("", "bggo-plugin-download-")
+		if err == nil {
+			defer os.RemoveAll(tempDir)
+		}
+		var archivePath string
+		if err == nil {
+			archivePath, err = a.pluginCatalogClient.Download(context.Background(), entry, tempDir)
+		}
+		if err == nil {
+			a.update(func() {
+				err = a.installDownloadedPlugin(archivePath, entry)
+			})
+		}
+		a.update(func() {
+			a.busy = false
+			if err != nil {
+				a.pluginStatus = "插件更新失败: " + err.Error()
+				a.error = true
+				return
+			}
+			a.pluginStatus = "插件已更新到 " + entry.Manifest.Version
 			a.error = false
 		})
 	}()

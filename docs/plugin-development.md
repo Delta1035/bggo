@@ -109,6 +109,46 @@ zip -r my-wallpaper-plugin.zip plugin.json index.js
 配置目录/bggo/plugin-data/<id>/
 ```
 
+## 签名插件目录和远程更新
+
+插件管理页支持从签名目录检查更新，但默认不连接任何在线市场。部署目录服务时设置以下环境变量后，应用才会显示远程更新：
+
+```text
+BGGO_PLUGIN_CATALOG_URL=https://downloads.example.com/bggo/plugins.json
+BGGO_PLUGIN_CATALOG_PUBLIC_KEY=<Ed25519 公钥的 base64>
+```
+
+目录使用固定的 envelope 格式，签名覆盖 `payload` 的紧凑 JSON 编码：
+
+```json
+{
+  "payload": {
+    "version": 1,
+    "generatedAt": "2026-11-12T00:00:00Z",
+    "plugins": [{
+      "manifest": {
+        "type": "bggo-wallpaper",
+        "apiVersion": 1,
+        "id": "my-wallpaper",
+        "name": "我的壁纸源",
+        "version": "1.1.0",
+        "main": "index.js",
+        "permissions": {"network": ["example.com"]}
+      },
+      "url": "https://downloads.example.com/my-wallpaper-1.1.0.zip",
+      "size": 1234,
+      "sha256": "<64 位十六进制 SHA-256>",
+      "signature": "<包 SHA-256 摘要的 Ed25519 签名 base64>"
+    }]
+  },
+  "signature": "<payload JSON 的 Ed25519 签名 base64>"
+}
+```
+
+目录、插件包和下载地址都必须通过 HTTPS。应用检查目录签名后，下载包还会检查文件大小、SHA-256、Ed25519 包签名以及包内 manifest 的 ID/版本；任何一步失败都不会进入插件安装器。签名私钥只能保存在发布服务器或受保护的 CI Secret 中，不能放入 BGGo 仓库或插件包。
+
+检查到更新后，用户仍需在管理页确认安装；网络权限扩大也会在确认信息中明确提示。远程更新沿用本地 ZIP 的原子替换、历史保留和回滚机制。
+
 ## 本地调试建议
 
 1. 先复制 `examples/wallpaper-plugin`，修改 `id`、名称和入口逻辑。

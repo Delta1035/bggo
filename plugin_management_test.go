@@ -159,7 +159,7 @@ func TestPluginManagementRollbackRestartsProvider(t *testing.T) {
 	if len(record.History) != 1 || record.History[0].Manifest.Version != "1.0.0" {
 		t.Fatalf("history after update = %#v", record.History)
 	}
-	if got := managedPluginTitle(t, service, "second"); got != "second" {
+	if got := managedPluginTitle(t, service, "managed-rollback"); got != "second" {
 		t.Fatalf("active plugin title = %q, want second", got)
 	}
 	versionID := record.History[0].ID
@@ -172,14 +172,79 @@ func TestPluginManagementRollbackRestartsProvider(t *testing.T) {
 	if len(record.History) != 1 || record.History[0].Manifest.Version != "2.0.0" {
 		t.Fatalf("history after rollback = %#v", record.History)
 	}
-	if got := managedPluginTitle(t, service, "first"); got != "first" {
+	if got := managedPluginTitle(t, service, "managed-rollback"); got != "first" {
 		t.Fatalf("rolled back plugin title = %q, want first", got)
 	}
 }
 
-func managedPluginTitle(t *testing.T, service *online.Service, want string) string {
+func TestInstallDownloadedPluginUsesSignedCatalogManifest(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "plugins")
+	firstArchive := filepath.Join(t.TempDir(), "first.zip")
+	secondArchive := filepath.Join(t.TempDir(), "second.zip")
+	writeManagedPluginArchive(t, firstArchive, "managed-remote", "1.0.0", "first")
+	writeManagedPluginArchive(t, secondArchive, "managed-remote", "2.0.0", "second")
+	if _, err := plugin.InstallArchive(firstArchive, root); err != nil {
+		t.Fatalf("install first archive failed: %v", err)
+	}
+	service, err := online.NewService(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewService() failed: %v", err)
+	}
+	a := &application{
+		onlineSvc:       service,
+		pluginRecords:   make(map[string]*managedPlugin),
+		pluginRoot:      root,
+		pluginDataRoot:  t.TempDir(),
+		pluginState:     plugin.EnabledState{},
+		pluginStatePath: filepath.Join(t.TempDir(), "plugin-state.json"),
+		pluginMetaPath:  filepath.Join(t.TempDir(), "plugin-metadata.json"),
+		pluginMetadata:  plugin.MetadataState{},
+		pluginUpdates:   make(map[string]plugin.CatalogEntry),
+	}
+	t.Cleanup(func() {
+		for _, source := range a.plugins {
+			source.Close()
+		}
+	})
+	if err := a.installPluginRecord(plugin.Manifest{
+		Type:        "bggo-wallpaper",
+		APIVersion:  1,
+		ID:          "managed-remote",
+		Name:        "Managed Remote",
+		Version:     "1.0.0",
+		Main:        "index.js",
+		Permissions: plugin.Permissions{Network: []string{"example.com"}},
+	}); err != nil {
+		t.Fatalf("register first plugin failed: %v", err)
+	}
+	if err := a.installDownloadedPlugin(secondArchive, plugin.CatalogEntry{
+		Manifest: plugin.Manifest{
+			Type:        "bggo-wallpaper",
+			APIVersion:  1,
+			ID:          "managed-remote",
+			Name:        "Managed Remote",
+			Version:     "2.0.0",
+			Main:        "index.js",
+			Permissions: plugin.Permissions{Network: []string{"example.com"}},
+		},
+		Size: int64(fileSize(t, secondArchive)),
+	}); err != nil {
+		t.Fatalf("installDownloadedPlugin() failed: %v", err)
+	}
+	if got := managedPluginTitle(t, service, "managed-remote"); got != "second" {
+		t.Fatalf("remote plugin title = %q, want second", got)
+	}
+	if len(a.pluginRecords["managed-remote"].History) != 1 {
+		t.Fatalf("remote update did not preserve history: %#v", a.pluginRecords["managed-remote"].History)
+	}
+	if got := a.pluginMetadata["managed-remote"].Source; got != "catalog" {
+		t.Fatalf("remote update source = %q, want catalog", got)
+	}
+}
+
+func managedPluginTitle(t *testing.T, service *online.Service, source string) string {
 	t.Helper()
-	page, err := service.GetWallpaperPage(context.Background(), online.Category{ID: "demo", Source: "managed-rollback"}, 1, 1)
+	page, err := service.GetWallpaperPage(context.Background(), online.Category{ID: "demo", Source: source}, 1, 1)
 	if err != nil {
 		t.Fatalf("GetWallpaperPage() failed: %v", err)
 	}
@@ -228,4 +293,13 @@ export function list() { return { items: [{ id: "item", title: "` + title + `", 
 	if err := file.Close(); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func fileSize(t *testing.T, path string) int64 {
+	t.Helper()
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return info.Size()
 }
