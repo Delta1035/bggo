@@ -2,7 +2,7 @@
   "name": "bggo-wallpaper",
   "displayName": "BGGo Wallpaper",
   "description": "为 VS Code 选择和管理本地壁纸",
-  "version": "0.2.14",
+  "version": "0.2.15",
   "publisher": "bggo",
   "license": "MIT",
   "packageManager": "pnpm@11.5.2",

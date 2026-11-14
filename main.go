@@ -35,7 +35,7 @@ import (
 //go:embed resources/icon.png
 var appIconBytes []byte
 
-const AppVersion = "v0.2.14"
+const AppVersion = "v0.2.15"
 
 const (
 	maxWallpaperFileBytes int64 = 64 << 20
@@ -832,7 +832,7 @@ func (a *application) drawFitSelectorV2(c *ui.Context) {
 		ui.Row(c).Gap(2).Children(func() {
 			for _, opt := range []struct{ value, label string }{{"覆盖", "⬒ 覆盖"}, {"适应", "⬓ 适应"}, {"拉伸", "⬖ 拉伸"}} {
 				opt := opt
-				btn := ui.Button(c.Key("fit-v2-"+opt.label), opt.label).Padding(4, 9).Radius(5)
+				btn := ui.Button(c.Key("seg-"+opt.value), opt.label).Padding(4, 9).Radius(5)
 				if a.fit == opt.value {
 					btn.Background(ui.Hex("#19D3C5"))
 					btn.TextColor(ui.Hex("#071316")).Bold()
