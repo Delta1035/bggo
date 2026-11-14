@@ -35,7 +35,7 @@ import (
 //go:embed resources/icon.png
 var appIconBytes []byte
 
-const AppVersion = "v0.2.13"
+const AppVersion = "v0.2.14"
 
 const (
 	maxWallpaperFileBytes int64 = 64 << 20
@@ -704,7 +704,9 @@ func (a *application) drawLocalMainV2(c *ui.Context, t *ui.Theme) {
 				})
 				importBtn := ui.ButtonBase(c.Key("btn-header-import")).Height(30).Padding(0, 12).Radius(6).Background(ui.Hex("#142332")).Border(1, ui.Hex("#29445A"))
 				importBtn.Children(func() { ui.Text(c, "IMPORT").FontSize(10).Bold().TextColor(ui.Hex("#D6E2EE")) })
-				if importBtn.Clicked() { a.chooseWallpaper() }
+				if importBtn.Clicked() {
+					a.chooseWallpaper()
+				}
 			})
 		})
 
@@ -728,11 +730,17 @@ func (a *application) drawLocalMainV2(c *ui.Context, t *ui.Theme) {
 func (a *application) drawRecentStrip(c *ui.Context) {
 	ui.Row(c).Height(58).FillWidth().Gap(8).Children(func() {
 		for i, path := range a.recent {
-			if i >= 4 { break }
+			if i >= 4 {
+				break
+			}
 			bmp := a.getRecentThumbnail(path)
 			box := ui.Box(c).Grow(1).FillHeight().Radius(6).Clip().Border(1, ui.Hex("#29445A"))
 			box.Children(func() {
-				if bmp != nil { ui.Image(c, bmp).Fill().Fit(ui.Cover) } else { ui.Box(c).Fill().Background(ui.Hex("#162433")) }
+				if bmp != nil {
+					ui.Image(c, bmp).Fill().Fit(ui.Cover)
+				} else {
+					ui.Box(c).Fill().Background(ui.Hex("#162433"))
+				}
 			})
 		}
 	})
@@ -742,7 +750,9 @@ func (a *application) drawLocalInfoPanel(c *ui.Context) {
 	ui.Column(c).Width(236).FillHeight().Padding(14, 14).Gap(12).Background(ui.Hex("#101A26")).Border(1, ui.Hex("#23384B")).Radius(10).Children(func() {
 		ui.Text(c, "SELECTION 01 / 04").FontSize(9).Bold().TextColor(ui.Hex("#19D3C5"))
 		name := "No wallpaper selected"
-		if a.selected != "" { name = filepath.Base(a.selected) }
+		if a.selected != "" {
+			name = filepath.Base(a.selected)
+		}
 		ui.Text(c, name).FontSize(18).Bold().TextColor(ui.Hex("#F4F7FB")).SingleLine()
 		ui.Text(c, "LOCAL LIBRARY").FontSize(9).Bold().TextColor(ui.Hex("#6F879F"))
 		ui.Box(c).Height(1).FillWidth().Background(ui.Hex("#23384B"))
@@ -760,7 +770,9 @@ func (a *application) drawLocalInfoPanel(c *ui.Context) {
 		ui.Spacer(c)
 		ui.Text(c, "DOMINANT PALETTE").FontSize(8).Bold().TextColor(ui.Hex("#6F879F"))
 		ui.Row(c).Gap(5).Children(func() {
-			for _, color := range []string{"#0B192C", "#214C70", "#19D3C5", "#D9EEF4"} { ui.Box(c).Width(28).Height(12).Radius(3).Background(ui.Hex(color)) }
+			for _, color := range []string{"#0B192C", "#214C70", "#19D3C5", "#D9EEF4"} {
+				ui.Box(c).Width(28).Height(12).Radius(3).Background(ui.Hex(color))
+			}
 		})
 	})
 }
@@ -769,23 +781,49 @@ func (a *application) drawLocalBottomBarV2(c *ui.Context) {
 	ui.Row(c).AlignItems(ui.Center).FillWidth().Gap(10).Children(func() {
 		a.drawFitSelectorV2(c)
 		ui.Spacer(c)
-		for _, item := range []struct{ key, label string; icon string }{
+		for _, item := range []struct {
+			key, label string
+			icon       string
+		}{
 			{"btn-show-folder-v2", "在文件夹中显示", "folder"},
 			{"btn-random-v2", "RANDOM", "refresh"},
 		} {
 			btn := ui.ButtonBase(c.Key(item.key)).Height(34).Padding(0, 10).Radius(6).Background(ui.Hex("#142332")).Border(1, ui.Hex("#29445A")).Disabled(a.selected == "")
-			btn.Children(func() { ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() { if item.icon == "folder" { ui.Icon(c, icons.ExternalLink).Size(13, 13).TextColor(ui.Hex("#A9BDCE")) } else { ui.Icon(c, icons.Refresh).Size(13, 13).TextColor(ui.Hex("#A9BDCE")) }; ui.Text(c, item.label).FontSize(9).Bold().TextColor(ui.Hex("#C3D0DC")) }) })
-			if btn.Clicked() && item.key == "btn-show-folder-v2" { mygo.Shell.ShowItemInFolder(a.selected) }
+			btn.Children(func() {
+				ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() {
+					if item.icon == "folder" {
+						ui.Icon(c, icons.ExternalLink).Size(13, 13).TextColor(ui.Hex("#A9BDCE"))
+					} else {
+						ui.Icon(c, icons.Refresh).Size(13, 13).TextColor(ui.Hex("#A9BDCE"))
+					}
+					ui.Text(c, item.label).FontSize(9).Bold().TextColor(ui.Hex("#C3D0DC"))
+				})
+			})
+			if btn.Clicked() && item.key == "btn-show-folder-v2" {
+				mygo.Shell.ShowItemInFolder(a.selected)
+			}
 		}
 		vscodeBtn := ui.ButtonBase(c.Key("btn-map-vscode-v2")).Height(34).Padding(0, 10).Radius(6).Background(ui.Hex("#142332")).Border(1, ui.Hex("#29445A")).Disabled(a.selected == "" || a.busy)
 		vscodeBtn.Children(func() { ui.Text(c, "映射到 VS Code").FontSize(9).Bold().TextColor(ui.Hex("#C3D0DC")) })
-		if vscodeBtn.Clicked() { a.applyVSCode() }
+		if vscodeBtn.Clicked() {
+			a.applyVSCode()
+		}
 		syncBtn := ui.ButtonBase(c.Key("btn-sync-vscode-v2")).Height(34).Padding(0, 10).Radius(6).Background(ui.Hex("#142332")).Border(1, ui.Hex("#29445A"))
 		syncBtn.Children(func() { ui.Text(c, "VS Code 自动同步").FontSize(9).Bold().TextColor(ui.Hex("#C3D0DC")) })
-		if syncBtn.Clicked() { a.syncVSCode = !a.syncVSCode; a.toggleSyncVSCode() }
+		if syncBtn.Clicked() {
+			a.syncVSCode = !a.syncVSCode
+			a.toggleSyncVSCode()
+		}
 		apply := ui.ButtonBase(c.Key("btn-apply-desktop-v2")).Height(38).Padding(0, 18).Radius(6).Background(ui.Hex("#FF765B")).Disabled(a.selected == "" || a.busy)
-		apply.Children(func() { ui.Row(c).AlignItems(ui.Center).Gap(7).Children(func() { ui.Icon(c, icons.Check).Size(14, 14).TextColor(ui.Hex("#190F0C")); ui.Text(c, "应用到桌面").FontSize(10).Bold().TextColor(ui.Hex("#190F0C")) }) })
-		if apply.Clicked() { a.applyWallpaper() }
+		apply.Children(func() {
+			ui.Row(c).AlignItems(ui.Center).Gap(7).Children(func() {
+				ui.Icon(c, icons.Check).Size(14, 14).TextColor(ui.Hex("#190F0C"))
+				ui.Text(c, "应用到桌面").FontSize(10).Bold().TextColor(ui.Hex("#190F0C"))
+			})
+		})
+		if apply.Clicked() {
+			a.applyWallpaper()
+		}
 	})
 }
 
@@ -795,8 +833,16 @@ func (a *application) drawFitSelectorV2(c *ui.Context) {
 			for _, opt := range []struct{ value, label string }{{"覆盖", "⬒ 覆盖"}, {"适应", "⬓ 适应"}, {"拉伸", "⬖ 拉伸"}} {
 				opt := opt
 				btn := ui.Button(c.Key("fit-v2-"+opt.label), opt.label).Padding(4, 9).Radius(5)
-				if a.fit == opt.value { btn.Background(ui.Hex("#19D3C5")); btn.TextColor(ui.Hex("#071316")).Bold() } else { btn.Background(ui.Hex("#00000000")); btn.TextColor(ui.Hex("#7F96AA")) }
-				if btn.Clicked() { a.fit = opt.value }
+				if a.fit == opt.value {
+					btn.Background(ui.Hex("#19D3C5"))
+					btn.TextColor(ui.Hex("#071316")).Bold()
+				} else {
+					btn.Background(ui.Hex("#00000000"))
+					btn.TextColor(ui.Hex("#7F96AA"))
+				}
+				if btn.Clicked() {
+					a.fit = opt.value
+				}
 			}
 		})
 	})

@@ -45,8 +45,8 @@ func (a *application) drawPluginManager(c *ui.Context, t *ui.Theme) {
 					ui.Icon(c, icons.Download).Size(15, 15).TextColor(ui.Hex("#2563EB"))
 				})
 				ui.Column(c).Grow(1).Gap(3).Children(func() {
-				ui.Text(c, "安全安装本地插件").FontSize(1).TextColor(ui.Hex("#101A26"))
-				ui.Text(c, "SAFE LOCAL INSTALL").FontSize(13).Bold().TextColor(ui.Hex("#F4F7FB"))
+					ui.Text(c, "安全安装本地插件").FontSize(1).TextColor(ui.Hex("#101A26"))
+					ui.Text(c, "SAFE LOCAL INSTALL").FontSize(13).Bold().TextColor(ui.Hex("#F4F7FB"))
 					ui.Text(c, "ZIP packages are checked for manifest, entry code, size, and permissions before install.").FontSize(11).TextColor(ui.Hex("#8FA5B9")).SingleLine()
 				})
 			})
