@@ -35,7 +35,7 @@ import (
 //go:embed resources/icon.png
 var appIconBytes []byte
 
-const AppVersion = "v0.2.15"
+const AppVersion = "v0.2.16"
 
 const (
 	maxWallpaperFileBytes int64 = 64 << 20
@@ -779,7 +779,7 @@ func (a *application) drawLocalInfoPanel(c *ui.Context) {
 
 func (a *application) drawLocalBottomBarV2(c *ui.Context) {
 	ui.Row(c).AlignItems(ui.Center).FillWidth().Gap(10).Children(func() {
-		a.drawFitSelectorV2(c)
+		a.drawFitSelector(c, c.Theme())
 		ui.Spacer(c)
 		for _, item := range []struct {
 			key, label string
@@ -1167,7 +1167,7 @@ func (a *application) drawLargePreviewBox(c *ui.Context, t *ui.Theme) {
 
 // drawFitSelector 绘制壁纸填充模式选择器 (原型图胶囊风格)
 func (a *application) drawFitSelector(c *ui.Context, t *ui.Theme) {
-	ui.Box(c).Radius(8).Padding(3).Background(ui.Hex("#F1F5F9")).Children(func() {
+	ui.Box(c).Radius(8).Padding(3).Background(ui.Hex("#101A26")).Border(1, ui.Hex("#23384B")).Children(func() {
 		ui.Row(c).Gap(2).Children(func() {
 			options := []struct {
 				val   string
@@ -1182,9 +1182,9 @@ func (a *application) drawFitSelector(c *ui.Context, t *ui.Theme) {
 				isSelected := a.fit == opt.val
 				btn := ui.Button(c.Key("seg-"+opt.val), opt.label).Padding(4, 10).Radius(6)
 				if isSelected {
-					btn.Background(ui.Hex("#FFFFFF")).TextColor(ui.Hex("#0F172A")).Bold()
+					btn.Background(ui.Hex("#19D3C5")).TextColor(ui.Hex("#071316")).Bold()
 				} else {
-					btn.Background(ui.Hex("#00000000")).TextColor(ui.Hex("#64748B"))
+					btn.Background(ui.Hex("#00000000")).TextColor(ui.Hex("#7F96AA"))
 				}
 				if btn.Clicked() {
 					a.fit = opt.val
