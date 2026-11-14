@@ -35,7 +35,7 @@ import (
 //go:embed resources/icon.png
 var appIconBytes []byte
 
-const AppVersion = "v0.2.16"
+const AppVersion = "v0.2.17"
 
 const (
 	maxWallpaperFileBytes int64 = 64 << 20
@@ -696,6 +696,7 @@ func (a *application) drawLocalMainV2(c *ui.Context, t *ui.Theme) {
 				ui.Text(c, fmt.Sprintf("%d RECENT  ·  WALLPAPER WORKSPACE", len(a.recent))).FontSize(10).TextColor(ui.Hex("#6F879F"))
 			})
 			ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
+				a.drawFitSelector(c, c.Theme())
 				ui.Box(c).Padding(5, 10).Radius(14).Background(ui.Hex("#102B32")).Border(1, ui.Hex("#1D5A5D")).Children(func() {
 					ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() {
 						ui.Box(c).Width(6).Height(6).Radius(3).Background(ui.Hex("#19D3C5"))
@@ -779,7 +780,6 @@ func (a *application) drawLocalInfoPanel(c *ui.Context) {
 
 func (a *application) drawLocalBottomBarV2(c *ui.Context) {
 	ui.Row(c).AlignItems(ui.Center).FillWidth().Gap(10).Children(func() {
-		a.drawFitSelector(c, c.Theme())
 		ui.Spacer(c)
 		for _, item := range []struct {
 			key, label string
