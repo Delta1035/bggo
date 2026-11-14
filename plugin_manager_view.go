@@ -11,11 +11,12 @@ import (
 )
 
 func (a *application) drawPluginManager(c *ui.Context, t *ui.Theme) {
-	ui.Column(c).Grow(1).FillHeight().Padding(22, 26, 20, 26).Gap(16).Background(ui.Hex("#FFFFFF")).Children(func() {
+	ui.Column(c).Grow(1).FillHeight().Padding(22, 26, 20, 26).Gap(16).Background(ui.Hex("#0B111A")).Children(func() {
 		ui.Row(c).AlignItems(ui.Center).FillWidth().DragWindow().Children(func() {
 			ui.Column(c).Grow(1).Gap(3).Children(func() {
-				ui.Text(c, "壁纸插件管理").FontSize(20).Bold().TextColor(ui.Hex("#0F172A"))
-				ui.Text(c, "像 MyGo Music 一样，通过插件扩展壁纸源").FontSize(12).TextColor(ui.Hex("#64748B"))
+				ui.Text(c, "壁纸插件管理").FontSize(1).TextColor(ui.Hex("#0B111A"))
+				ui.Text(c, "WALLPAPER PLUGINS").FontSize(20).Bold().TextColor(ui.Hex("#F4F7FB"))
+				ui.Text(c, "Extend the wallpaper library with isolated source plugins").FontSize(12).TextColor(ui.Hex("#8FA5B9"))
 			})
 			ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
 				check := ui.ButtonBase(c.Key("plugin-check-updates")).Height(34).Padding(0, 12).Radius(8).Background(ui.Hex("#F8FAFC")).Border(1, ui.Hex("#E2E8F0"))
@@ -38,14 +39,15 @@ func (a *application) drawPluginManager(c *ui.Context, t *ui.Theme) {
 			})
 		})
 
-		ui.Box(c).FillWidth().Padding(12, 14).Radius(10).Background(ui.Hex("#F8FAFC")).Border(1, ui.Hex("#E2E8F0")).Children(func() {
+		ui.Box(c).FillWidth().Padding(12, 14).Radius(10).Background(ui.Hex("#101A26")).Border(1, ui.Hex("#23384B")).Children(func() {
 			ui.Row(c).AlignItems(ui.Center).Gap(10).Children(func() {
 				ui.Box(c).Width(30).Height(30).Radius(8).Background(ui.Hex("#DBEAFE")).Center().Children(func() {
 					ui.Icon(c, icons.Download).Size(15, 15).TextColor(ui.Hex("#2563EB"))
 				})
 				ui.Column(c).Grow(1).Gap(3).Children(func() {
-					ui.Text(c, "安全安装本地插件").FontSize(13).Bold().TextColor(ui.Hex("#1E293B"))
-					ui.Text(c, "选择 ZIP 后会先校验 manifest、入口代码、文件大小和权限；确认安装后才会写入插件目录。").FontSize(11).TextColor(ui.Hex("#64748B")).SingleLine()
+				ui.Text(c, "安全安装本地插件").FontSize(1).TextColor(ui.Hex("#101A26"))
+				ui.Text(c, "SAFE LOCAL INSTALL").FontSize(13).Bold().TextColor(ui.Hex("#F4F7FB"))
+					ui.Text(c, "ZIP packages are checked for manifest, entry code, size, and permissions before install.").FontSize(11).TextColor(ui.Hex("#8FA5B9")).SingleLine()
 				})
 			})
 		})
@@ -63,8 +65,8 @@ func (a *application) drawPluginManager(c *ui.Context, t *ui.Theme) {
 		}
 
 		ui.Row(c).AlignItems(ui.Center).Justify(ui.SpaceBetween).FillWidth().Children(func() {
-			ui.Text(c, fmt.Sprintf("已登记 %d 个插件", len(a.pluginRecords))).FontSize(13).Bold().TextColor(ui.Hex("#334155"))
-			ui.Text(c, "内置插件不可卸载，外部插件卸载时保留运行数据").FontSize(11).TextColor(ui.Hex("#94A3B8"))
+			ui.Text(c, fmt.Sprintf("%d REGISTERED PLUGINS", len(a.pluginRecords))).FontSize(13).Bold().TextColor(ui.Hex("#D6E2EE"))
+			ui.Text(c, "Built-in sources stay protected; external data survives uninstall").FontSize(11).TextColor(ui.Hex("#6F879F"))
 		})
 
 		ui.Scroll(c).Grow(1).FillWidth().Gap(10).Children(func() {
@@ -122,14 +124,14 @@ func (a *application) drawPluginCard(c *ui.Context, record *managedPlugin) {
 	if record.Error != "" {
 		border = ui.Hex("#FECACA")
 	}
-	ui.Box(c).FillWidth().Padding(14, 16).Radius(10).Background(ui.Hex("#FFFFFF")).Border(1, border).Children(func() {
+	ui.Box(c).FillWidth().Padding(14, 16).Radius(10).Background(ui.Hex("#101A26")).Border(1, border).Children(func() {
 		ui.Row(c).AlignItems(ui.Center).Gap(12).Children(func() {
 			ui.Box(c).Width(38).Height(38).Radius(10).Background(ui.Hex("#EFF6FF")).Center().Children(func() {
 				ui.Icon(c, icons.Image).Size(18, 18).TextColor(ui.Hex("#2563EB"))
 			})
 			ui.Column(c).Grow(1).Gap(4).Children(func() {
 				ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
-					ui.Text(c, record.Manifest.Name).FontSize(14).Bold().TextColor(ui.Hex("#0F172A"))
+					ui.Text(c, record.Manifest.Name).FontSize(14).Bold().TextColor(ui.Hex("#F4F7FB"))
 					ui.Text(c, record.Manifest.ID).FontSize(10).TextColor(ui.Hex("#94A3B8"))
 				})
 				sourceText := pluginSourceLabel(record)

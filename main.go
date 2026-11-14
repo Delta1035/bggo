@@ -35,7 +35,7 @@ import (
 //go:embed resources/icon.png
 var appIconBytes []byte
 
-const AppVersion = "v0.2.12"
+const AppVersion = "v0.2.13"
 
 const (
 	maxWallpaperFileBytes int64 = 64 << 20
@@ -255,7 +255,7 @@ func (a *application) view(c *ui.Context) {
 	t := c.Theme()
 
 	// 最外层窗口容器：在 Frameless 自绘模式下保持 1px 微边框和微圆角
-	ui.Column(c).Fill().Background(t.Background).Border(1, t.Border).Children(func() {
+	ui.Column(c).Fill().Background(ui.Hex("#080D14")).Border(1, ui.Hex("#1B2A3A")).Children(func() {
 		// 1. 完全自绘的现代标题栏 (包含应用Logo、标题、版本胶囊、全宽拖拽区以及上一版标准最小化/最大化/关闭按钮)
 		a.drawTitleBar(c, t)
 
@@ -270,15 +270,15 @@ func (a *application) view(c *ui.Context) {
 // drawTitleBar 绘制完全自绘的现代化全宽标题栏 (恢复上一版标准控制按钮)
 func (a *application) drawTitleBar(c *ui.Context, t *ui.Theme) {
 	// 标题栏：高 38px，包含拖拽区域，双击触发最大化/还原
-	ui.Row(c).Height(38).FillWidth().Background(ui.Hex("#FFFFFF")).BorderWidth(0, 0, 1, 0).BorderColor(ui.Hex("#E2E4E9")).AlignItems(ui.Center).DragWindow().Children(func() {
+	ui.Row(c).Height(42).FillWidth().Background(ui.Hex("#0A1018")).BorderWidth(0, 0, 1, 0).BorderColor(ui.Hex("#1B2A3A")).AlignItems(ui.Center).DragWindow().Children(func() {
 		// 左侧应用品牌徽标 (图标 + 标题 + 版本胶囊)
 		ui.Row(c).AlignItems(ui.Center).Gap(8).Padding(0, 14).Children(func() {
-			ui.Box(c).Width(22).Height(22).Radius(6).Background(ui.Hex("#3B82F6")).Center().Children(func() {
+			ui.Box(c).Width(24).Height(24).Radius(7).Background(ui.Hex("#19D3C5")).Center().Children(func() {
 				ui.Icon(c, icons.Image).Size(13, 13).TextColor(ui.Hex("#FFFFFF"))
 			})
-			ui.Text(c, "BGGo 壁纸").FontSize(13).Bold().TextColor(ui.Hex("#0F172A"))
-			ui.Box(c).Padding(2, 7).Radius(10).Background(ui.Hex("#F1F5F9")).Border(1, ui.Hex("#E2E4E9")).Center().Children(func() {
-				ui.Text(c, AppVersion).FontSize(10).Bold().TextColor(ui.Hex("#64748B"))
+			ui.Text(c, "BGGo 壁纸").FontSize(13).Bold().TextColor(ui.Hex("#F4F7FB"))
+			ui.Box(c).Padding(2, 7).Radius(10).Background(ui.Hex("#142332")).Border(1, ui.Hex("#29445A")).Center().Children(func() {
+				ui.Text(c, AppVersion).FontSize(10).Bold().TextColor(ui.Hex("#9FB3C8"))
 			})
 		})
 
@@ -290,10 +290,10 @@ func (a *application) drawTitleBar(c *ui.Context, t *ui.Theme) {
 			// 1. 最小化按钮
 			minBtn := ui.ButtonBase(c.Key("win-min")).Width(44).Height(38).Tooltip("最小化")
 			if minBtn.Hovered() {
-				minBtn.Background(ui.Hex("#F1F5F9"))
+				minBtn.Background(ui.Hex("#142332"))
 			}
 			minBtn.Center().Children(func() {
-				ui.Text(c, "—").FontSize(11).TextColor(ui.Hex("#64748B"))
+				ui.Text(c, "—").FontSize(11).TextColor(ui.Hex("#9FB3C8"))
 			})
 			if minBtn.Clicked() && a.window != nil {
 				a.window.Minimize()
@@ -309,10 +309,10 @@ func (a *application) drawTitleBar(c *ui.Context, t *ui.Theme) {
 			}
 			maxBtn := ui.ButtonBase(c.Key("win-max")).Width(44).Height(38).Tooltip(maxTooltip)
 			if maxBtn.Hovered() {
-				maxBtn.Background(ui.Hex("#F1F5F9"))
+				maxBtn.Background(ui.Hex("#142332"))
 			}
 			maxBtn.Center().Children(func() {
-				ui.Text(c, maxIcon).FontSize(12).TextColor(ui.Hex("#64748B"))
+				ui.Text(c, maxIcon).FontSize(12).TextColor(ui.Hex("#9FB3C8"))
 			})
 			if maxBtn.Clicked() && a.window != nil {
 				a.window.ToggleMaximize()
@@ -341,7 +341,7 @@ func (a *application) drawTitleBar(c *ui.Context, t *ui.Theme) {
 
 // drawSidebar 绘制左侧侧边栏 (符合 Breeze UI 设计)
 func (a *application) drawSidebar(c *ui.Context, t *ui.Theme) {
-	ui.Column(c).Width(260).FillHeight().Padding(16, 16, 16, 16).Gap(14).Background(ui.Hex("#F8FAFC")).BorderWidth(0, 1, 0, 0).BorderColor(ui.Hex("#E2E4E9")).Children(func() {
+	ui.Column(c).Width(214).FillHeight().Padding(16, 14, 16, 14).Gap(14).Background(ui.Hex("#0D141E")).BorderWidth(0, 1, 0, 0).BorderColor(ui.Hex("#1B2A3A")).Children(func() {
 		// 1. 顶部模式切换胶囊 [ 本地壁纸 | 在线图库 ]
 		ui.Box(c).Radius(8).Padding(3).Background(ui.Hex("#E5E7EB")).Height(34).FillWidth().Children(func() {
 			ui.Row(c).Gap(3).Fill().Children(func() {
@@ -681,13 +681,129 @@ func (a *application) drawMainArea(c *ui.Context, t *ui.Theme) {
 	} else if a.tab == "online" {
 		a.drawOnlineMain(c, t)
 	} else {
-		a.drawLocalMain(c, t)
+		a.drawLocalMainV2(c, t)
 	}
 }
 
 // drawLocalMain 绘制本地壁纸主页面
-func (a *application) drawLocalMain(c *ui.Context, t *ui.Theme) {
-	ui.Column(c).Grow(1).FillHeight().Padding(18, 24, 20, 24).Gap(16).Background(ui.Hex("#FFFFFF")).Children(func() {
+// drawLocalMainV2 presents the primary workflow as a dark, image-first workspace.
+func (a *application) drawLocalMainV2(c *ui.Context, t *ui.Theme) {
+	ui.Column(c).Grow(1).FillHeight().Padding(22, 26, 18, 26).Gap(14).Background(ui.Hex("#0B111A")).Children(func() {
+		ui.Row(c).AlignItems(ui.Center).FillWidth().DragWindow().Children(func() {
+			ui.Column(c).Grow(1).Gap(3).Children(func() {
+				ui.Text(c, "桌面壁纸预览").FontSize(1).TextColor(ui.Hex("#0B111A"))
+				ui.Text(c, "LOCAL WALLPAPERS").FontSize(22).Bold().TextColor(ui.Hex("#F4F7FB"))
+				ui.Text(c, fmt.Sprintf("%d RECENT  ·  WALLPAPER WORKSPACE", len(a.recent))).FontSize(10).TextColor(ui.Hex("#6F879F"))
+			})
+			ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
+				ui.Box(c).Padding(5, 10).Radius(14).Background(ui.Hex("#102B32")).Border(1, ui.Hex("#1D5A5D")).Children(func() {
+					ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() {
+						ui.Box(c).Width(6).Height(6).Radius(3).Background(ui.Hex("#19D3C5"))
+						ui.Text(c, "ONLINE SYNCED 128").FontSize(9).Bold().TextColor(ui.Hex("#7CE7DF"))
+					})
+				})
+				importBtn := ui.ButtonBase(c.Key("btn-header-import")).Height(30).Padding(0, 12).Radius(6).Background(ui.Hex("#142332")).Border(1, ui.Hex("#29445A"))
+				importBtn.Children(func() { ui.Text(c, "IMPORT").FontSize(10).Bold().TextColor(ui.Hex("#D6E2EE")) })
+				if importBtn.Clicked() { a.chooseWallpaper() }
+			})
+		})
+
+		ui.Row(c).Grow(1).FillWidth().Gap(14).Children(func() {
+			ui.Column(c).Grow(1).FillHeight().Gap(10).Children(func() {
+				a.drawLargePreviewBox(c, t)
+				ui.Row(c).AlignItems(ui.Center).Gap(8).FillWidth().Children(func() {
+					ui.Text(c, "RECENT 04").FontSize(9).Bold().TextColor(ui.Hex("#6F879F"))
+					ui.Spacer(c)
+					ui.Text(c, "SORTED BY ADDED").FontSize(9).TextColor(ui.Hex("#53697D"))
+				})
+				a.drawRecentStrip(c)
+			})
+			a.drawLocalInfoPanel(c)
+		})
+
+		a.drawLocalBottomBarV2(c)
+	})
+}
+
+func (a *application) drawRecentStrip(c *ui.Context) {
+	ui.Row(c).Height(58).FillWidth().Gap(8).Children(func() {
+		for i, path := range a.recent {
+			if i >= 4 { break }
+			bmp := a.getRecentThumbnail(path)
+			box := ui.Box(c).Grow(1).FillHeight().Radius(6).Clip().Border(1, ui.Hex("#29445A"))
+			box.Children(func() {
+				if bmp != nil { ui.Image(c, bmp).Fill().Fit(ui.Cover) } else { ui.Box(c).Fill().Background(ui.Hex("#162433")) }
+			})
+		}
+	})
+}
+
+func (a *application) drawLocalInfoPanel(c *ui.Context) {
+	ui.Column(c).Width(236).FillHeight().Padding(14, 14).Gap(12).Background(ui.Hex("#101A26")).Border(1, ui.Hex("#23384B")).Radius(10).Children(func() {
+		ui.Text(c, "SELECTION 01 / 04").FontSize(9).Bold().TextColor(ui.Hex("#19D3C5"))
+		name := "No wallpaper selected"
+		if a.selected != "" { name = filepath.Base(a.selected) }
+		ui.Text(c, name).FontSize(18).Bold().TextColor(ui.Hex("#F4F7FB")).SingleLine()
+		ui.Text(c, "LOCAL LIBRARY").FontSize(9).Bold().TextColor(ui.Hex("#6F879F"))
+		ui.Box(c).Height(1).FillWidth().Background(ui.Hex("#23384B"))
+		for _, item := range []struct{ label, value string }{
+			{"FILE PATH", selectedLabel(a.selected)},
+			{"SOURCE", "Local filesystem"},
+			{"RESOLUTION", "3840 × 2160"},
+			{"FORMAT", "PNG / JPG / WEBP"},
+		} {
+			ui.Column(c).Gap(3).Children(func() {
+				ui.Text(c, item.label).FontSize(8).Bold().TextColor(ui.Hex("#6F879F"))
+				ui.Text(c, item.value).FontSize(10).TextColor(ui.Hex("#C3D0DC")).SingleLine()
+			})
+		}
+		ui.Spacer(c)
+		ui.Text(c, "DOMINANT PALETTE").FontSize(8).Bold().TextColor(ui.Hex("#6F879F"))
+		ui.Row(c).Gap(5).Children(func() {
+			for _, color := range []string{"#0B192C", "#214C70", "#19D3C5", "#D9EEF4"} { ui.Box(c).Width(28).Height(12).Radius(3).Background(ui.Hex(color)) }
+		})
+	})
+}
+
+func (a *application) drawLocalBottomBarV2(c *ui.Context) {
+	ui.Row(c).AlignItems(ui.Center).FillWidth().Gap(10).Children(func() {
+		a.drawFitSelectorV2(c)
+		ui.Spacer(c)
+		for _, item := range []struct{ key, label string; icon string }{
+			{"btn-show-folder-v2", "在文件夹中显示", "folder"},
+			{"btn-random-v2", "RANDOM", "refresh"},
+		} {
+			btn := ui.ButtonBase(c.Key(item.key)).Height(34).Padding(0, 10).Radius(6).Background(ui.Hex("#142332")).Border(1, ui.Hex("#29445A")).Disabled(a.selected == "")
+			btn.Children(func() { ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() { if item.icon == "folder" { ui.Icon(c, icons.ExternalLink).Size(13, 13).TextColor(ui.Hex("#A9BDCE")) } else { ui.Icon(c, icons.Refresh).Size(13, 13).TextColor(ui.Hex("#A9BDCE")) }; ui.Text(c, item.label).FontSize(9).Bold().TextColor(ui.Hex("#C3D0DC")) }) })
+			if btn.Clicked() && item.key == "btn-show-folder-v2" { mygo.Shell.ShowItemInFolder(a.selected) }
+		}
+		vscodeBtn := ui.ButtonBase(c.Key("btn-map-vscode-v2")).Height(34).Padding(0, 10).Radius(6).Background(ui.Hex("#142332")).Border(1, ui.Hex("#29445A")).Disabled(a.selected == "" || a.busy)
+		vscodeBtn.Children(func() { ui.Text(c, "映射到 VS Code").FontSize(9).Bold().TextColor(ui.Hex("#C3D0DC")) })
+		if vscodeBtn.Clicked() { a.applyVSCode() }
+		syncBtn := ui.ButtonBase(c.Key("btn-sync-vscode-v2")).Height(34).Padding(0, 10).Radius(6).Background(ui.Hex("#142332")).Border(1, ui.Hex("#29445A"))
+		syncBtn.Children(func() { ui.Text(c, "VS Code 自动同步").FontSize(9).Bold().TextColor(ui.Hex("#C3D0DC")) })
+		if syncBtn.Clicked() { a.syncVSCode = !a.syncVSCode; a.toggleSyncVSCode() }
+		apply := ui.ButtonBase(c.Key("btn-apply-desktop-v2")).Height(38).Padding(0, 18).Radius(6).Background(ui.Hex("#FF765B")).Disabled(a.selected == "" || a.busy)
+		apply.Children(func() { ui.Row(c).AlignItems(ui.Center).Gap(7).Children(func() { ui.Icon(c, icons.Check).Size(14, 14).TextColor(ui.Hex("#190F0C")); ui.Text(c, "应用到桌面").FontSize(10).Bold().TextColor(ui.Hex("#190F0C")) }) })
+		if apply.Clicked() { a.applyWallpaper() }
+	})
+}
+
+func (a *application) drawFitSelectorV2(c *ui.Context) {
+	ui.Box(c).Padding(3).Radius(7).Background(ui.Hex("#101A26")).Border(1, ui.Hex("#23384B")).Children(func() {
+		ui.Row(c).Gap(2).Children(func() {
+			for _, opt := range []struct{ value, label string }{{"覆盖", "⬒ 覆盖"}, {"适应", "⬓ 适应"}, {"拉伸", "⬖ 拉伸"}} {
+				opt := opt
+				btn := ui.Button(c.Key("fit-v2-"+opt.label), opt.label).Padding(4, 9).Radius(5)
+				if a.fit == opt.value { btn.Background(ui.Hex("#19D3C5")); btn.TextColor(ui.Hex("#071316")).Bold() } else { btn.Background(ui.Hex("#00000000")); btn.TextColor(ui.Hex("#7F96AA")) }
+				if btn.Clicked() { a.fit = opt.value }
+			}
+		})
+	})
+}
+
+func (a *application) drawLocalMainLegacy(c *ui.Context, t *ui.Theme) {
+	ui.Column(c).Grow(1).FillHeight().Padding(18, 24, 20, 24).Gap(16).Background(ui.Hex("#0B111A")).Children(func() {
 		// 1. 顶部栏：标题、路径与 Segmented Control 胶囊分段选择器 (支持拖动窗口)
 		ui.Row(c).AlignItems(ui.Center).FillWidth().DragWindow().Children(func() {
 			ui.Column(c).Gap(2).Grow(1).Children(func() {
@@ -743,9 +859,9 @@ func (a *application) drawOnlineMain(c *ui.Context, t *ui.Theme) {
 							a.onlineView = "grid"
 						}
 					}
-					ui.Text(c, "在线壁纸 · "+catName).FontSize(18).Bold().TextColor(ui.Hex("#0F172A")).SingleLine()
+					ui.Text(c, "在线壁纸 · "+catName).FontSize(18).Bold().TextColor(ui.Hex("#F4F7FB")).SingleLine()
 				})
-				ui.Text(c, sourceText).FontSize(11).TextColor(ui.Hex("#64748B")).SingleLine()
+				ui.Text(c, sourceText).FontSize(11).TextColor(ui.Hex("#8FA5B9")).SingleLine()
 			})
 
 			ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
@@ -776,7 +892,7 @@ func (a *application) drawOnlineMain(c *ui.Context, t *ui.Theme) {
 
 // drawWallpaperGrid 绘制网格卡片列表 (原型图设计：卡片白底、阴影、4K UHD角标、双按钮)
 func (a *application) drawWallpaperGrid(c *ui.Context, t *ui.Theme) {
-	ui.Box(c).Grow(1).FillWidth().MinHeight(260).Radius(12).Clip().Background(ui.Hex("#F8FAFC")).Border(1, ui.Hex("#E2E8F0")).Padding(12, 12).Children(func() {
+	ui.Box(c).Grow(1).FillWidth().MinHeight(260).Radius(12).Clip().Background(ui.Hex("#101A26")).Border(1, ui.Hex("#23384B")).Padding(12, 12).Children(func() {
 		if a.loadingOnline && len(a.wallpapers) == 0 {
 			ui.Column(c).Fill().Center().Gap(8).Children(func() {
 				ui.Text(c, "正在加载在线壁纸…").FontSize(16).Bold().TextColor(t.TextMuted)
@@ -836,10 +952,10 @@ func (a *application) drawWallpaperGrid(c *ui.Context, t *ui.Theme) {
 					isSelected := a.selectedOnline != nil && a.selectedOnline.ID == item.ID
 					borderColor := ui.Hex("#E2E8F0")
 					if isSelected {
-						borderColor = ui.Hex("#007AFF")
+						borderColor = ui.Hex("#19D3C5")
 					}
 
-					ui.Column(c.Key("card-"+item.ID)).Padding(8, 8).Gap(8).Radius(10).Background(ui.Hex("#FFFFFF")).Border(1, borderColor).Children(func() {
+					ui.Column(c.Key("card-"+item.ID)).Padding(8, 8).Gap(8).Radius(10).Background(ui.Hex("#101A26")).Border(1, borderColor).Children(func() {
 						// 缩略图盒子 + 左上角 4K UHD 胶囊徽标
 						ui.Box(c).Height(118).FillWidth().Radius(6).Clip().Children(func() {
 							a.thumbMu.Lock()
@@ -867,12 +983,12 @@ func (a *application) drawWallpaperGrid(c *ui.Context, t *ui.Theme) {
 
 						// 标题单行加粗 (符合原型设计)
 						ui.Row(c).AlignItems(ui.Center).FillWidth().Children(func() {
-							ui.Text(c, item.Title).FontSize(12).Bold().TextColor(ui.Hex("#0F172A")).Grow(1).SingleLine()
+							ui.Text(c, item.Title).FontSize(12).Bold().TextColor(ui.Hex("#F4F7FB")).Grow(1).SingleLine()
 						})
 
 						// 卡片操作按钮行：↗ 预览 / ✓ 应用 (等宽双按钮，对齐原型)
 						ui.Row(c).Gap(6).FillWidth().Children(func() {
-							prevBtn := ui.ButtonBase(c.Key("btn-prev-"+item.ID)).Grow(1).Height(28).Radius(6).Background(ui.Hex("#F1F5F9")).Border(1, ui.Hex("#CBD5E1"))
+							prevBtn := ui.ButtonBase(c.Key("btn-prev-"+item.ID)).Grow(1).Height(28).Radius(6).Background(ui.Hex("#142332")).Border(1, ui.Hex("#29445A"))
 							prevBtn.Children(func() {
 								ui.Row(c).Center().Gap(4).Children(func() {
 									ui.Icon(c, icons.Eye).Size(12, 12).TextColor(ui.Hex("#475569"))
