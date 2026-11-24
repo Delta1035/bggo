@@ -7,29 +7,30 @@ import (
 	"bggo/internal/plugin"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
-	breeze "github.com/yldm-tech/mygo-breeze-ui/ui/breeze"
+	"github.com/harukizmoe/mayu"
 )
 
 func (a *application) drawPluginManager(c *ui.Context, t *ui.Theme) {
-	ui.Column(c).Grow(1).FillHeight().Padding(22, 26, 20, 26).Gap(16).Background(ui.Hex("#FFFFFF")).Children(func() {
+	scheme := mayu.Scheme(c)
+	ui.Column(c).Grow(1).FillHeight().Padding(20, 22, 18, 22).Gap(14).Background(scheme.Surface).Children(func() {
 		ui.Row(c).AlignItems(ui.Center).FillWidth().DragWindow().Children(func() {
 			ui.Column(c).Grow(1).Gap(3).Children(func() {
-				ui.Text(c, "壁纸插件管理").FontSize(20).Bold().TextColor(ui.Hex("#0F172A"))
-				ui.Text(c, "像 MyGo Music 一样，通过插件扩展壁纸源").FontSize(12).TextColor(ui.Hex("#64748B"))
+				ui.Text(c, "壁纸插件管理").FontSize(20).Bold().TextColor(scheme.OnSurface)
+				ui.Text(c, "像 MyGo Music 一样，通过插件扩展壁纸源").FontSize(12).TextColor(scheme.OnSurfaceVariant)
 			})
 			ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
-				check := ui.ButtonBase(c.Key("plugin-check-updates")).Height(34).Padding(0, 12).Radius(8).Background(ui.Hex("#F8FAFC")).Border(1, ui.Hex("#E2E8F0"))
+				check := ui.ButtonBase(c.Key("plugin-check-updates")).Height(34).Padding(0, 12).Radius(8).Background(scheme.SurfaceContainerLow).Border(1, scheme.OutlineVariant)
 				check.Children(func() {
-					ui.Text(c, "检查更新").FontSize(12).Bold().TextColor(ui.Hex("#334155"))
+					ui.Text(c, "检查更新").FontSize(12).Bold().TextColor(scheme.OnSurface)
 				})
 				if check.Clicked() && !a.busy {
 					a.checkPluginUpdates()
 				}
-				upload := ui.ButtonBase(c.Key("plugin-upload")).Height(34).Padding(0, 14).Radius(8).Background(ui.Hex("#007AFF"))
+				upload := ui.ButtonBase(c.Key("plugin-upload")).Height(34).Padding(0, 14).Radius(8).Background(scheme.Primary)
 				upload.Children(func() {
 					ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() {
-						ui.Icon(c, icons.Download).Size(14, 14).TextColor(ui.Hex("#FFFFFF"))
-						ui.Text(c, "上传插件包").FontSize(12).Bold().TextColor(ui.Hex("#FFFFFF"))
+						ui.Icon(c, icons.Download).Size(14, 14).TextColor(scheme.Surface)
+						ui.Text(c, "上传插件包").FontSize(12).Bold().TextColor(scheme.Surface)
 					})
 				})
 				if upload.Clicked() {
@@ -38,14 +39,14 @@ func (a *application) drawPluginManager(c *ui.Context, t *ui.Theme) {
 			})
 		})
 
-		ui.Box(c).FillWidth().Padding(12, 14).Radius(10).Background(ui.Hex("#F8FAFC")).Border(1, ui.Hex("#E2E8F0")).Children(func() {
+		ui.Box(c).FillWidth().Padding(12, 14).Radius(10).Background(scheme.SurfaceContainerLow).Border(1, scheme.OutlineVariant).Children(func() {
 			ui.Row(c).AlignItems(ui.Center).Gap(10).Children(func() {
-				ui.Box(c).Width(30).Height(30).Radius(8).Background(ui.Hex("#DBEAFE")).Center().Children(func() {
-					ui.Icon(c, icons.Download).Size(15, 15).TextColor(ui.Hex("#2563EB"))
+				ui.Box(c).Width(30).Height(30).Radius(8).Background(scheme.PrimaryContainer).Center().Children(func() {
+					ui.Icon(c, icons.Download).Size(15, 15).TextColor(scheme.Primary)
 				})
 				ui.Column(c).Grow(1).Gap(3).Children(func() {
-					ui.Text(c, "安全安装本地插件").FontSize(13).Bold().TextColor(ui.Hex("#1E293B"))
-					ui.Text(c, "选择 ZIP 后会先校验 manifest、入口代码、文件大小和权限；确认安装后才会写入插件目录。").FontSize(11).TextColor(ui.Hex("#64748B")).SingleLine()
+					ui.Text(c, "安全安装本地插件").FontSize(13).Bold().TextColor(scheme.OnSurface)
+					ui.Text(c, "选择 ZIP 后会先校验 manifest、入口代码、文件大小和权限；确认安装后才会写入插件目录。").FontSize(11).TextColor(scheme.OnSurfaceVariant).SingleLine()
 				})
 			})
 		})
@@ -55,16 +56,16 @@ func (a *application) drawPluginManager(c *ui.Context, t *ui.Theme) {
 		}
 
 		if a.pluginStatus != "" {
-			color := ui.Hex("#64748B")
+			color := scheme.OnSurfaceVariant
 			if a.error {
-				color = ui.Hex("#DC2626")
+				color = scheme.Error
 			}
 			ui.Text(c, a.pluginStatus).FontSize(12).TextColor(color).SingleLine()
 		}
 
 		ui.Row(c).AlignItems(ui.Center).Justify(ui.SpaceBetween).FillWidth().Children(func() {
-			ui.Text(c, fmt.Sprintf("已登记 %d 个插件", len(a.pluginRecords))).FontSize(13).Bold().TextColor(ui.Hex("#334155"))
-			ui.Text(c, "内置插件不可卸载，外部插件卸载时保留运行数据").FontSize(11).TextColor(ui.Hex("#94A3B8"))
+			ui.Text(c, fmt.Sprintf("已登记 %d 个插件", len(a.pluginRecords))).FontSize(13).Bold().TextColor(scheme.OnSurface)
+			ui.Text(c, "内置插件不可卸载，外部插件卸载时保留运行数据").FontSize(11).TextColor(scheme.OnSurfaceVariant)
 		})
 
 		ui.Scroll(c).Grow(1).FillWidth().Gap(10).Children(func() {
@@ -83,6 +84,7 @@ func (a *application) drawPluginManager(c *ui.Context, t *ui.Theme) {
 }
 
 func (a *application) drawPendingPlugin(c *ui.Context) {
+	scheme := mayu.Scheme(c)
 	manifest := a.pendingManifest
 	ui.Box(c).FillWidth().Padding(12, 14).Radius(10).Background(ui.Hex("#FFFBEB")).Border(1, ui.Hex("#FCD34D")).Children(func() {
 		ui.Column(c).Gap(7).Children(func() {
@@ -99,11 +101,13 @@ func (a *application) drawPendingPlugin(c *ui.Context) {
 			}
 			ui.Text(c, "插件代码会在独立 MoeJS runtime 中运行；安装后仍可随时停用。").FontSize(11).TextColor(ui.Hex("#92400E"))
 			ui.Row(c).Gap(8).Children(func() {
-				install := breeze.PrimaryButton(c, "确认安装").Height(30).Padding(0, 12)
-				if install.Clicked() && !a.busy {
-					a.installPendingPlugin()
-				}
-				cancel := ui.ButtonBase(c.Key("plugin-install-cancel")).Height(30).Padding(0, 12).Radius(6).Background(ui.Hex("#FFFFFF")).Border(1, ui.Hex("#FCD34D"))
+				confirm := mayu.FilledButton(c, "确认安装").OnClick(func() {
+					if !a.busy {
+						a.installPendingPlugin()
+					}
+				})
+				confirm.Height(36)
+				cancel := ui.ButtonBase(c.Key("plugin-install-cancel")).Height(30).Padding(0, 12).Radius(6).Background(scheme.Surface).Border(1, ui.Hex("#FCD34D"))
 				cancel.Children(func() {
 					ui.Text(c, "取消").FontSize(11).TextColor(ui.Hex("#92400E"))
 				})
@@ -118,19 +122,20 @@ func (a *application) drawPendingPlugin(c *ui.Context) {
 }
 
 func (a *application) drawPluginCard(c *ui.Context, record *managedPlugin) {
-	border := ui.Hex("#E2E8F0")
+	scheme := mayu.Scheme(c)
+	border := scheme.OutlineVariant
 	if record.Error != "" {
 		border = ui.Hex("#FECACA")
 	}
-	ui.Box(c).FillWidth().Padding(14, 16).Radius(10).Background(ui.Hex("#FFFFFF")).Border(1, border).Children(func() {
+	ui.Box(c).FillWidth().Padding(14, 16).Radius(10).Background(scheme.Surface).Border(1, border).Children(func() {
 		ui.Row(c).AlignItems(ui.Center).Gap(12).Children(func() {
 			ui.Box(c).Width(38).Height(38).Radius(10).Background(ui.Hex("#EFF6FF")).Center().Children(func() {
-				ui.Icon(c, icons.Image).Size(18, 18).TextColor(ui.Hex("#2563EB"))
+				ui.Icon(c, icons.Image).Size(18, 18).TextColor(scheme.Primary)
 			})
 			ui.Column(c).Grow(1).Gap(4).Children(func() {
 				ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
-					ui.Text(c, record.Manifest.Name).FontSize(14).Bold().TextColor(ui.Hex("#0F172A"))
-					ui.Text(c, record.Manifest.ID).FontSize(10).TextColor(ui.Hex("#94A3B8"))
+					ui.Text(c, record.Manifest.Name).FontSize(14).Bold().TextColor(scheme.OnSurface)
+					ui.Text(c, record.Manifest.ID).FontSize(10).TextColor(scheme.OnSurfaceVariant)
 				})
 				sourceText := pluginSourceLabel(record)
 				if metadata, ok := a.pluginMetadata[record.Manifest.ID]; ok {
@@ -141,18 +146,18 @@ func (a *application) drawPluginCard(c *ui.Context, record *managedPlugin) {
 						sourceText += " · " + metadata.InstalledAt.Local().Format("2006-01-02 15:04")
 					}
 				}
-				ui.Text(c, fmt.Sprintf("版本 %s · %s", record.Manifest.Version, sourceText)).FontSize(11).TextColor(ui.Hex("#64748B"))
-				ui.Text(c, pluginNetworkText(record.Manifest)).FontSize(11).TextColor(ui.Hex("#64748B")).SingleLine()
+				ui.Text(c, fmt.Sprintf("版本 %s · %s", record.Manifest.Version, sourceText)).FontSize(11).TextColor(scheme.OnSurfaceVariant)
+				ui.Text(c, pluginNetworkText(record.Manifest)).FontSize(11).TextColor(scheme.OnSurfaceVariant).SingleLine()
 				if !record.Builtin {
 					historyLabel := fmt.Sprintf("历史版本：%d", len(record.History))
 					if len(record.History) > 0 {
 						historyLabel += " · 上一版 " + record.History[0].Manifest.Version
 					}
 					ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
-						ui.Text(c, historyLabel).FontSize(11).TextColor(ui.Hex("#64748B"))
-						rollback := ui.ButtonBase(c.Key("plugin-rollback-"+record.Manifest.ID)).Height(24).Padding(0, 8).Radius(5).Background(ui.Hex("#F8FAFC")).Border(1, ui.Hex("#E2E8F0")).Disabled(len(record.History) == 0 || a.busy)
+						ui.Text(c, historyLabel).FontSize(11).TextColor(scheme.OnSurfaceVariant)
+						rollback := ui.ButtonBase(c.Key("plugin-rollback-"+record.Manifest.ID)).Height(24).Padding(0, 8).Radius(5).Background(scheme.SurfaceContainerLow).Border(1, scheme.OutlineVariant).Disabled(len(record.History) == 0 || a.busy)
 						rollback.Children(func() {
-							ui.Text(c, "回滚上一版").FontSize(10).TextColor(ui.Hex("#334155"))
+							ui.Text(c, "回滚上一版").FontSize(10).TextColor(scheme.OnSurface)
 						})
 						if rollback.Clicked() && len(record.History) > 0 && !a.busy {
 							version := record.History[0]
@@ -161,10 +166,10 @@ func (a *application) drawPluginCard(c *ui.Context, record *managedPlugin) {
 					})
 					if update, ok := a.pluginUpdates[record.Manifest.ID]; ok {
 						ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
-							ui.Text(c, "发现新版本 "+update.Manifest.Version).FontSize(11).Bold().TextColor(ui.Hex("#2563EB"))
+							ui.Text(c, "发现新版本 "+update.Manifest.Version).FontSize(11).Bold().TextColor(scheme.Primary)
 							updateButton := ui.ButtonBase(c.Key("plugin-update-"+record.Manifest.ID)).Height(24).Padding(0, 8).Radius(5).Background(ui.Hex("#EFF6FF")).Border(1, ui.Hex("#BFDBFE")).Disabled(a.busy)
 							updateButton.Children(func() {
-								ui.Text(c, "更新").FontSize(10).Bold().TextColor(ui.Hex("#2563EB"))
+								ui.Text(c, "更新").FontSize(10).Bold().TextColor(scheme.Primary)
 							})
 							if updateButton.Clicked() && !a.busy {
 								go a.confirmRemotePluginUpdate(update)
@@ -173,11 +178,11 @@ func (a *application) drawPluginCard(c *ui.Context, record *managedPlugin) {
 					}
 				}
 				if record.Error != "" {
-					ui.Text(c, "状态："+record.Error).FontSize(11).TextColor(ui.Hex("#DC2626")).SingleLine()
+					ui.Text(c, "状态："+record.Error).FontSize(11).TextColor(scheme.Error).SingleLine()
 				}
 			})
 			statusText := "已停用"
-			statusColor := ui.Hex("#94A3B8")
+			statusColor := scheme.OnSurfaceVariant
 			if record.Enabled && record.Error == "" {
 				statusText = "运行中"
 				statusColor = ui.Hex("#059669")
@@ -186,9 +191,9 @@ func (a *application) drawPluginCard(c *ui.Context, record *managedPlugin) {
 				ui.Text(c, statusText).FontSize(10).Bold().TextColor(statusColor)
 			})
 			if !a.busy {
-				toggle := ui.ButtonBase(c.Key("plugin-toggle-"+record.Manifest.ID)).Height(30).Padding(0, 10).Radius(6).Background(ui.Hex("#F8FAFC")).Border(1, ui.Hex("#E2E8F0"))
+				toggle := ui.ButtonBase(c.Key("plugin-toggle-"+record.Manifest.ID)).Height(30).Padding(0, 10).Radius(6).Background(scheme.SurfaceContainerLow).Border(1, scheme.OutlineVariant)
 				toggle.Children(func() {
-					ui.Text(c, map[bool]string{true: "停用", false: "启用"}[record.Enabled]).FontSize(11).TextColor(ui.Hex("#334155"))
+					ui.Text(c, map[bool]string{true: "停用", false: "启用"}[record.Enabled]).FontSize(11).TextColor(scheme.OnSurface)
 				})
 				if toggle.Clicked() {
 					if err := a.setPluginEnabled(record.Manifest.ID, !record.Enabled); err != nil {
@@ -203,7 +208,7 @@ func (a *application) drawPluginCard(c *ui.Context, record *managedPlugin) {
 			if !record.Builtin && !a.busy {
 				remove := ui.ButtonBase(c.Key("plugin-remove-"+record.Manifest.ID)).Height(30).Padding(0, 10).Radius(6).Background(ui.Hex("#FFF7F7")).Border(1, ui.Hex("#FECACA"))
 				remove.Children(func() {
-					ui.Icon(c, icons.Trash).Size(12, 12).TextColor(ui.Hex("#DC2626"))
+					ui.Icon(c, icons.Trash).Size(12, 12).TextColor(scheme.Error)
 				})
 				if remove.Clicked() {
 					go a.confirmUninstallPlugin(record.Manifest.ID, record.Manifest.Name)

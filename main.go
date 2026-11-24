@@ -27,7 +27,10 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/plugins/updater/native"
 	"github.com/egoist/mygo/ui"
-	breeze "github.com/yldm-tech/mygo-breeze-ui/ui/breeze"
+	"github.com/harukizmoe/mayu"
+	"github.com/harukizmoe/mayu/components"
+	"github.com/harukizmoe/mayu/symbols"
+	"github.com/harukizmoe/mayu/theme"
 	_ "golang.org/x/image/bmp"
 	_ "golang.org/x/image/webp"
 )
@@ -36,6 +39,13 @@ import (
 var appIconBytes []byte
 
 const AppVersion = "v0.2.12"
+
+// m3SeedColor is the brand blue that seeds Mayu's Material You tonal palettes.
+// Both light and dark schemes are derived from it at runtime.
+var m3SeedColor = ui.Hex("#007AFF")
+
+// m3Scheme returns the active Material 3 color scheme for the current frame.
+func m3Scheme(c *ui.Context) theme.ColorScheme { return mayu.Scheme(c) }
 
 const (
 	maxWallpaperFileBytes int64 = 64 << 20
@@ -251,55 +261,131 @@ func (a *application) AutoBing() bool {
 }
 
 func (a *application) view(c *ui.Context) {
-	breeze.Use(c)
+	// Material You: follow the system appearance. c.Theme().Dark already
+	// reflects the desktop preference; MyGo repaints the view on change.
+	mayu.Use(c, mayu.ThemeOptions{
+		SeedColor: m3SeedColor,
+		Dark:      c.Theme().Dark,
+		Density:   mayu.DensityCompact,
+	})
 	t := c.Theme()
+	scheme := m3Scheme(c)
 
-	// 最外层窗口容器：在 Frameless 自绘模式下保持 1px 微边框和微圆角
-	ui.Column(c).Fill().Background(t.Background).Border(1, t.Border).Children(func() {
-		// 1. 完全自绘的现代标题栏 (包含应用Logo、标题、版本胶囊、全宽拖拽区以及上一版标准最小化/最大化/关闭按钮)
+	// Outermost window container: 1px hairline border in the M3 outline color.
+	ui.Column(c).Fill().Background(scheme.Background).Border(1, scheme.OutlineVariant).Children(func() {
+		// 1. Self-drawn title bar with brand, version pill and window controls.
 		a.drawTitleBar(c, t)
 
-		// 2. 窗口主体内容区 (侧边栏 + 主内容区)
+		// 2. Body: 80dp M3 navigation rail + contextual panel + active page.
 		ui.Row(c).Grow(1).FillWidth().Children(func() {
-			a.drawSidebar(c, t)
+			a.drawNavigationRail(c, t)
+			a.drawContextPanel(c, t)
 			a.drawMainArea(c, t)
 		})
 	})
 }
 
-// drawTitleBar 绘制完全自绘的现代化全宽标题栏 (恢复上一版标准控制按钮)
-func (a *application) drawTitleBar(c *ui.Context, t *ui.Theme) {
-	// 标题栏：高 38px，包含拖拽区域，双击触发最大化/还原
-	ui.Row(c).Height(38).FillWidth().Background(ui.Hex("#FFFFFF")).BorderWidth(0, 0, 1, 0).BorderColor(ui.Hex("#E2E4E9")).AlignItems(ui.Center).DragWindow().Children(func() {
-		// 左侧应用品牌徽标 (图标 + 标题 + 版本胶囊)
-		ui.Row(c).AlignItems(ui.Center).Gap(8).Padding(0, 14).Children(func() {
-			ui.Box(c).Width(22).Height(22).Radius(6).Background(ui.Hex("#3B82F6")).Center().Children(func() {
-				ui.Icon(c, icons.Image).Size(13, 13).TextColor(ui.Hex("#FFFFFF"))
+// drawNavigationRail replaces the old 260px sidebar with an M3 NavigationRail.
+// The recent/favorites list it used to host now lives in the local page's
+// library panel, so all existing labels and click targets remain reachable.
+func (a *application) drawNavigationRail(c *ui.Context, t *ui.Theme) {
+	scheme := m3Scheme(c)
+	// Self-drawn M3 rail: the icon and label live inside the SAME click target.
+	// Mayu v0.1.1's NavigationRail builds the icon indicator as a sibling of the
+	// clickable column, so tapping the icon never fires OnSelect. This keeps the
+	// 80dp M3 look while making the whole destination item clickable.
+	ui.Column(c).Width(80).FillHeight().Padding(12, 0).Justify(ui.SpaceBetween).AlignItems(ui.Center).
+		Background(scheme.Surface).
+		BorderWidth(0, 1, 0, 0).BorderColor(scheme.OutlineVariant).Children(func() {
+		ui.Column(c).FillWidth().AlignItems(ui.Center).Gap(10).Children(func() {
+			ui.Box(c).Size(44, 44).Radius(14).Background(scheme.Primary).Center().Children(func() {
+				ui.Icon(c, icons.Image).Size(24, 24).TextColor(scheme.OnPrimary)
 			})
-			ui.Text(c, "BGGo 壁纸").FontSize(13).Bold().TextColor(ui.Hex("#0F172A"))
-			ui.Box(c).Padding(2, 7).Radius(10).Background(ui.Hex("#F1F5F9")).Border(1, ui.Hex("#E2E4E9")).Center().Children(func() {
-				ui.Text(c, AppVersion).FontSize(10).Bold().TextColor(ui.Hex("#64748B"))
+
+			destinations := []struct {
+				key   string
+				label string
+				icon  *ui.SVG
+			}{
+				{"local", "本地壁纸", icons.Monitor},
+				{"online", "在线图库", icons.Globe},
+				{"plugins", "插件管理", icons.Download},
+			}
+			for _, dest := range destinations {
+				dest := dest
+				selected := a.tab == dest.key
+				item := ui.ButtonBase(c.Key("rail-" + dest.key)).Width(72).Height(64).Radius(16).Label(dest.label)
+				if selected {
+					item.Background(scheme.SecondaryContainer)
+				}
+				item.Children(func() {
+					ui.Column(c).FillWidth().AlignItems(ui.Center).Gap(4).Children(func() {
+						iconColor := scheme.OnSurfaceVariant
+						if selected {
+							iconColor = scheme.OnSecondaryContainer
+						}
+						ui.Box(c).Size(56, 32).Radius(16).Center().Children(func() {
+							ui.Icon(c, dest.icon).Size(22, 22).TextColor(iconColor)
+						})
+						labelColor := scheme.OnSurfaceVariant
+						if selected {
+							labelColor = scheme.OnSurface
+						}
+						ui.Text(c, dest.label).FontSize(11).Bold().TextColor(labelColor).SingleLine()
+					})
+				})
+				if item.Clicked() {
+					a.tab = dest.key
+					if a.tab == "online" && len(a.categories) == 0 && !a.loadingOnline {
+						a.loadOnlineCategories()
+					}
+				}
+			}
+		})
+
+		chk := ui.ButtonBase(c.Key("rail-check-update")).Size(44, 44).Radius(22).Center().Tooltip("检查更新").Label("检查更新")
+		chk.Children(func() {
+			ui.Icon(c, icons.Sparkles).Size(18, 18).TextColor(scheme.Primary)
+		})
+		if chk.Clicked() {
+			a.checkForUpdates()
+		}
+	})
+}
+
+// drawTitleBar renders the self-drawn full-width title bar using M3 tokens.
+func (a *application) drawTitleBar(c *ui.Context, t *ui.Theme) {
+	scheme := m3Scheme(c)
+	// 40dp title bar: drag region; double-click toggles maximize.
+	ui.Row(c).Height(40).FillWidth().Background(scheme.SurfaceContainerLow).BorderWidth(0, 0, 1, 0).BorderColor(scheme.OutlineVariant).AlignItems(ui.Center).DragWindow().Children(func() {
+		// Brand: icon + title + version pill.
+		ui.Row(c).AlignItems(ui.Center).Gap(8).Padding(0, 14).Children(func() {
+			ui.Box(c).Width(24).Height(24).Radius(8).Background(scheme.Primary).Center().Children(func() {
+				ui.Icon(c, icons.Image).Size(14, 14).TextColor(scheme.OnPrimary)
+			})
+			ui.Text(c, "BGGo 壁纸").FontSize(13).Bold().TextColor(scheme.OnSurface)
+			ui.Box(c).Padding(2, 7).Radius(10).Background(scheme.SurfaceContainerHighest).Center().Children(func() {
+				ui.Text(c, AppVersion).FontSize(10).Bold().TextColor(scheme.OnSurfaceVariant)
 			})
 		})
 
-		// 中间全宽留白拖拽区
 		ui.Spacer(c)
 
-		// 右侧自绘窗口控制按钮群 (最小化、最大化/还原、关闭)
-		ui.Row(c).Height(38).AlignItems(ui.Center).Children(func() {
-			// 1. 最小化按钮
-			minBtn := ui.ButtonBase(c.Key("win-min")).Width(44).Height(38).Label("最小化").Tooltip("最小化")
+		// Window controls: Lucide icons with accessible labels (icon-optimization
+		// commit) sized for the 40dp M3 title bar.
+		ui.Row(c).Height(40).AlignItems(ui.Center).Children(func() {
+			// 1. Minimize
+			minBtn := ui.ButtonBase(c.Key("win-min")).Width(44).Height(40).Label("最小化").Tooltip("最小化")
 			if minBtn.Hovered() {
-				minBtn.Background(ui.Hex("#F1F5F9"))
+				minBtn.Background(scheme.SurfaceContainerHighest)
 			}
 			minBtn.Center().Children(func() {
-				ui.Icon(c, icons.Minus).Size(12, 12).TextColor(ui.Hex("#64748B"))
+				ui.Icon(c, icons.Minus).Size(12, 12).TextColor(scheme.OnSurfaceVariant)
 			})
 			if minBtn.Clicked() && a.window != nil {
 				a.window.Minimize()
 			}
 
-			// 2. 最大化 / 还原按钮
 			isMax := a.window != nil && a.window.IsMaximized()
 			maxIcon := icons.Square
 			maxTooltip := "最大化"
@@ -307,26 +393,26 @@ func (a *application) drawTitleBar(c *ui.Context, t *ui.Theme) {
 				maxIcon = icons.Copy
 				maxTooltip = "还原"
 			}
-			maxBtn := ui.ButtonBase(c.Key("win-max")).Width(44).Height(38).Label(maxTooltip).Tooltip(maxTooltip)
+			maxBtn := ui.ButtonBase(c.Key("win-max")).Width(44).Height(40).Label(maxTooltip).Tooltip(maxTooltip)
 			if maxBtn.Hovered() {
-				maxBtn.Background(ui.Hex("#F1F5F9"))
+				maxBtn.Background(scheme.SurfaceContainerHighest)
 			}
 			maxBtn.Center().Children(func() {
-				ui.Icon(c, maxIcon).Size(12, 12).TextColor(ui.Hex("#64748B"))
+				ui.Icon(c, maxIcon).Size(12, 12).TextColor(scheme.OnSurfaceVariant)
 			})
 			if maxBtn.Clicked() && a.window != nil {
 				a.window.ToggleMaximize()
 			}
 
-			// 3. 关闭按钮 (Hover 时呈现红色背景与白色文字)
-			closeBtn := ui.ButtonBase(c.Key("win-close")).Width(44).Height(38).Label("关闭").Tooltip("关闭")
-			closeTextColor := ui.Hex("#64748B")
+			// 3. Close button (red background on hover)
+			closeBtn := ui.ButtonBase(c.Key("win-close")).Width(44).Height(40).Label("关闭").Tooltip("关闭")
+			closeColor := scheme.OnSurfaceVariant
 			if closeBtn.Hovered() {
-				closeBtn.Background(ui.Hex("#EF4444"))
-				closeTextColor = ui.Hex("#FFFFFF")
+				closeBtn.Background(scheme.Error)
+				closeColor = scheme.OnError
 			}
 			closeBtn.Center().Children(func() {
-				ui.Icon(c, icons.X).Size(13, 13).TextColor(closeTextColor)
+				ui.Icon(c, icons.X).Size(13, 13).TextColor(closeColor)
 			})
 			if closeBtn.Clicked() && a.window != nil {
 				if a.tray != nil {
@@ -339,338 +425,154 @@ func (a *application) drawTitleBar(c *ui.Context, t *ui.Theme) {
 	})
 }
 
-// drawSidebar 绘制左侧侧边栏 (符合 Breeze UI 设计)
-func (a *application) drawSidebar(c *ui.Context, t *ui.Theme) {
-	ui.Column(c).Width(260).FillHeight().Padding(16, 16, 16, 16).Gap(14).Background(ui.Hex("#F8FAFC")).BorderWidth(0, 1, 0, 0).BorderColor(ui.Hex("#E2E4E9")).Children(func() {
-		// 1. 顶部模式切换胶囊 [ 本地壁纸 | 在线图库 ]
-		ui.Box(c).Radius(8).Padding(3).Background(ui.Hex("#E5E7EB")).Height(34).FillWidth().Children(func() {
-			ui.Row(c).Gap(3).Fill().Children(func() {
-				isLocal := a.tab == "local"
-				btnLocal := ui.ButtonBase(c.Key("tab-local")).Grow(1).FillHeight().Radius(6)
-				if isLocal {
-					btnLocal.Background(ui.Hex("#FFFFFF"))
-				} else {
-					btnLocal.Background(ui.Hex("#00000000"))
-				}
-				btnLocal.Children(func() {
-					ui.Row(c).Center().Gap(6).Children(func() {
-						icCol := ui.Hex("#64748B")
-						if isLocal {
-							icCol = ui.Hex("#0F172A")
-						}
-						ui.Icon(c, icons.Monitor).Size(13, 13).TextColor(icCol)
-						lbl := ui.Text(c, "本地壁纸").FontSize(12).TextColor(icCol)
-						if isLocal {
-							lbl.Bold()
-						}
-					})
-				})
-				if btnLocal.Clicked() {
-					a.tab = "local"
-				}
-
-				isOnline := a.tab == "online"
-				btnOnline := ui.ButtonBase(c.Key("tab-online")).Grow(1).FillHeight().Radius(6)
-				if isOnline {
-					btnOnline.Background(ui.Hex("#FFFFFF"))
-				} else {
-					btnOnline.Background(ui.Hex("#00000000"))
-				}
-				btnOnline.Children(func() {
-					ui.Row(c).Center().Gap(6).Children(func() {
-						icCol := ui.Hex("#64748B")
-						if isOnline {
-							icCol = ui.Hex("#0F172A")
-						}
-						ui.Icon(c, icons.Globe).Size(13, 13).TextColor(icCol)
-						lbl := ui.Text(c, "在线图库").FontSize(12).TextColor(icCol)
-						if isOnline {
-							lbl.Bold()
-						}
-					})
-				})
-				if btnOnline.Clicked() {
-					a.tab = "online"
-					if len(a.categories) == 0 && !a.loadingOnline {
-						a.loadOnlineCategories()
-					}
-				}
-
-				isPlugins := a.tab == "plugins"
-				btnPlugins := ui.ButtonBase(c.Key("tab-plugins")).Grow(1).FillHeight().Radius(6)
-				if isPlugins {
-					btnPlugins.Background(ui.Hex("#FFFFFF"))
-				} else {
-					btnPlugins.Background(ui.Hex("#00000000"))
-				}
-				btnPlugins.Children(func() {
-					ui.Row(c).Center().Gap(4).Children(func() {
-						icCol := ui.Hex("#64748B")
-						if isPlugins {
-							icCol = ui.Hex("#0F172A")
-						}
-						ui.Icon(c, icons.Download).Size(13, 13).TextColor(icCol)
-						lbl := ui.Text(c, "插件管理").FontSize(11).TextColor(icCol)
-						if isPlugins {
-							lbl.Bold()
-						}
-					})
-				})
-				if btnPlugins.Clicked() {
-					a.tab = "plugins"
-				}
-			})
-		})
-
-		// 4. 中间内容区：根据模式展示
-		if a.tab == "local" {
-			// 本地模式：选择本地图片主按钮
-			chooseBtn := ui.ButtonBase(c.Key("btn-choose-file")).FillWidth().Height(44).Radius(8).Background(ui.Hex("#007AFF"))
-			chooseBtn.Children(func() {
-				ui.Row(c).Center().Gap(7).Children(func() {
-					ui.Icon(c, icons.FolderOpen).Size(15, 15).TextColor(ui.Hex("#FFFFFF"))
-					ui.Text(c, "选择本地壁纸").FontSize(13).Bold().TextColor(ui.Hex("#FFFFFF"))
-				})
-			})
-			if chooseBtn.Clicked() {
-				a.chooseWallpaper()
-			}
-			ui.Row(c).Justify(ui.Center).AlignItems(ui.Center).FillWidth().Children(func() {
-				ui.Text(c, "或直接拖放图片到窗口").FontSize(11).TextColor(ui.Hex("#94A3B8"))
-			})
-
-			// 切换：[ 最近使用 · N | 我的收藏 · M ]
-			ui.Box(c).Radius(7).Padding(2).Background(ui.Hex("#E5E7EB")).Height(30).FillWidth().Children(func() {
-				ui.Row(c).Gap(2).Fill().Children(func() {
-					isRecent := a.localSubTab != "favorites"
-					btnRecent := ui.ButtonBase(c.Key("sub-recent")).Grow(1).FillHeight().Radius(5)
-					if isRecent {
-						btnRecent.Background(ui.Hex("#FFFFFF"))
-					} else {
-						btnRecent.Background(ui.Hex("#00000000"))
-					}
-					btnRecent.Children(func() {
-						ui.Row(c).Center().Gap(4).Children(func() {
-							col := ui.Hex("#64748B")
-							if isRecent {
-								col = ui.Hex("#0F172A")
-							}
-							ui.Icon(c, icons.Clock).Size(12, 12).TextColor(col)
-							t := ui.Text(c, fmt.Sprintf("最近使用 · %d", len(a.recent))).FontSize(11).TextColor(col)
-							if isRecent {
-								t.Bold()
-							}
-						})
-					})
-					if btnRecent.Clicked() {
-						a.localSubTab = "recent"
-					}
-
-					isFav := a.localSubTab == "favorites"
-					btnFav := ui.ButtonBase(c.Key("sub-fav")).Grow(1).FillHeight().Radius(5)
-					if isFav {
-						btnFav.Background(ui.Hex("#FFFFFF"))
-					} else {
-						btnFav.Background(ui.Hex("#00000000"))
-					}
-					btnFav.Children(func() {
-						ui.Row(c).Center().Gap(4).Children(func() {
-							col := ui.Hex("#64748B")
-							if isFav {
-								col = ui.Hex("#EF4444")
-							}
-							ui.Icon(c, icons.Heart).Size(12, 12).TextColor(col)
-							t := ui.Text(c, fmt.Sprintf("我的收藏 · %d", len(a.favorites))).FontSize(11).TextColor(col)
-							if isFav {
-								t.Bold()
-							}
-						})
-					})
-					if btnFav.Clicked() {
-						a.localSubTab = "favorites"
-					}
-				})
-			})
-
-			// 列表渲染 (最近使用 或 收藏夹)
-			ui.Column(c).Grow(1).Gap(6).FillWidth().Children(func() {
-				currentList := a.recent
-				emptyText := "还没有使用过壁纸"
-				listTitle := fmt.Sprintf("最近使用 · %d", len(a.recent))
-				if a.localSubTab == "favorites" {
-					currentList = a.favorites
-					emptyText = "还没有收藏的壁纸\n在大图预览点击爱心可添加收藏"
-					listTitle = fmt.Sprintf("我的收藏 · %d", len(a.favorites))
-				}
-
-				ui.Row(c).AlignItems(ui.Center).Justify(ui.SpaceBetween).FillWidth().Padding(0, 2).Children(func() {
-					ui.Text(c, listTitle).FontSize(11).Bold().TextColor(ui.Hex("#64748B"))
-					if a.localSubTab != "favorites" && len(a.recent) > 0 {
-						clearBtn := ui.ButtonBase(c.Key("clear-recent")).Padding(2, 6).Radius(4).Background(ui.Hex("#F1F5F9")).Border(1, ui.Hex("#E2E8F0"))
-						clearBtn.Children(func() {
-							ui.Row(c).AlignItems(ui.Center).Gap(3).Children(func() {
-								ui.Icon(c, icons.Trash).Size(11, 11).TextColor(ui.Hex("#64748B"))
-								ui.Text(c, "清空").FontSize(11).TextColor(ui.Hex("#64748B"))
-							})
-						})
-						if clearBtn.Clicked() {
-							a.clearRecent()
-						}
-					}
-				})
-
-				ui.Scroll(c).Grow(1).Gap(4).Children(func() {
-					if len(currentList) == 0 {
-						ui.Text(c, emptyText).FontSize(12).TextColor(ui.Hex("#94A3B8")).Margin(6, 0)
-					}
-					for _, path := range currentList {
-						path := path
-						isSelected := a.selected == path
-						spec := a.getWallpaperSpec(path)
-
-						cardBg := ui.Hex("#00000000")
-						borderCol := ui.Hex("#00000000")
-						titleCol := ui.Hex("#334155")
-						specCol := ui.Hex("#94A3B8")
-						if isSelected {
-							cardBg = ui.Hex("#EFF6FF")
-							borderCol = ui.Hex("#007AFF")
-							titleCol = ui.Hex("#0F172A")
-							specCol = ui.Hex("#007AFF")
-						}
-
-						// 壁纸条目使用普通容器，文件名用 Link 保留点击和文本复制能力。
-						ui.Box(c).FillWidth().Height(46).Radius(8).Background(cardBg).Border(1, borderCol).Padding(6, 8).Selectable().Children(func() {
-							ui.Row(c).AlignItems(ui.Center).Gap(8).Fill().Children(func() {
-								// 1. 左侧缩略图
-								thumbBmp := a.getRecentThumbnail(path)
-								if thumbBmp != nil {
-									ui.Image(c, thumbBmp).Width(34).Height(22).Radius(4).Fit(ui.Cover)
-								} else {
-									ui.Box(c).Width(34).Height(22).Radius(4).Background(ui.Hex("#1E3E62")).Center().Children(func() {
-										ui.Icon(c, icons.Image).Size(12, 12).TextColor(ui.Hex("#FFFFFF"))
-									})
-								}
-
-								// 2. 中间双行信息 (标题 + 规格)
-								ui.Column(c).Grow(1).Gap(1).Children(func() {
-									filenameLink := ui.Link(c.Key("item-"+path), filepath.Base(path), "").FontSize(12).Bold().TextColor(titleCol).SingleLine().Tooltip(path)
-									if filenameLink.Clicked() {
-										a.loadWallpaper(path)
-									}
-									ui.Text(c, spec).FontSize(10).TextColor(specCol).SingleLine()
-								})
-
-								// 3. 右侧对勾标记 (仅选中项显示)
-								if isSelected {
-									ui.Icon(c, icons.Check).Size(14, 14).TextColor(ui.Hex("#007AFF"))
-								}
-							})
-						})
-					}
-				})
-			})
-		} else if a.tab == "online" {
-			// 在线模式：壁纸分类列表 (带有图标与数量 Badge)
-			ui.Column(c).Grow(1).Gap(6).FillWidth().Children(func() {
-				ui.Row(c).AlignItems(ui.Center).Justify(ui.SpaceBetween).FillWidth().Padding(0, 2).Children(func() {
-					ui.Text(c, "壁纸分类").FontSize(11).Bold().TextColor(ui.Hex("#64748B"))
-					refreshBtn := ui.ButtonBase(c.Key("refresh-cats")).Padding(2, 6).Radius(4).Background(ui.Hex("#F1F5F9")).Border(1, ui.Hex("#E2E8F0"))
-					refreshBtn.Children(func() {
-						ui.Row(c).AlignItems(ui.Center).Gap(3).Children(func() {
-							ui.Icon(c, icons.Refresh).Size(11, 11).TextColor(ui.Hex("#64748B"))
-							ui.Text(c, "刷新").FontSize(11).TextColor(ui.Hex("#64748B"))
-						})
-					})
-					if refreshBtn.Clicked() {
-						a.loadOnlineCategories()
-					}
-				})
-
-				ui.Scroll(c).Grow(1).Gap(4).Children(func() {
-					if len(a.categories) == 0 {
-						if a.loadingOnline {
-							ui.Text(c, "正在加载分类…").FontSize(12).TextColor(ui.Hex("#94A3B8")).Margin(6, 0)
-						} else {
-							ui.Text(c, "暂无分类数据").FontSize(12).TextColor(ui.Hex("#94A3B8")).Margin(6, 0)
-						}
-					}
-					for _, cat := range a.categories {
-						cat := cat
-						isSelected := a.selectedCategory.ID == cat.ID && a.selectedCategory.Source == cat.Source
-						icon := icons.ForCategory(cat.Name)
-						badgeCount := categoryBadge(cat)
-
-						cardBg := ui.Hex("#00000000")
-						borderCol := ui.Hex("#00000000")
-						textCol := ui.Hex("#334155")
-						if isSelected {
-							cardBg = ui.Hex("#EFF6FF")
-							borderCol = ui.Hex("#007AFF")
-							textCol = ui.Hex("#007AFF")
-						}
-
-						btn := ui.ButtonBase(c.Key("cat-"+cat.Source+"-"+cat.ID)).FillWidth().Height(34).Radius(7).Background(cardBg).Border(1, borderCol).Padding(6, 10)
-						if btn.Clicked() {
-							a.onlinePage = 1
-							a.selectedCategory = cat
-							a.onlineView = "grid"
-							a.loadOnlineWallpapers(cat, 1)
-						}
-						btn.Children(func() {
-							ui.Row(c).AlignItems(ui.Center).Justify(ui.SpaceBetween).Fill().Children(func() {
-								ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
-									ui.Icon(c, icon).Size(14, 14).TextColor(textCol)
-									lbl := ui.Text(c, cat.Name).FontSize(12).TextColor(textCol)
-									if isSelected {
-										lbl.Bold()
-									}
-								})
-								if isSelected {
-									ui.Box(c).Padding(2, 6).Radius(10).Background(ui.Hex("#007AFF20")).Children(func() {
-										ui.Text(c, badgeCount).FontSize(10).Bold().TextColor(ui.Hex("#007AFF"))
-									})
-								} else {
-									ui.Text(c, badgeCount).FontSize(11).TextColor(ui.Hex("#94A3B8"))
-								}
-							})
-						})
-					}
-				})
-			})
-		} else {
-			ui.Column(c).Grow(1).Gap(10).FillWidth().Children(func() {
-				ui.Text(c, "插件管理").FontSize(11).Bold().TextColor(ui.Hex("#64748B"))
-				ui.Text(c, "安装本地 ZIP 插件包，管理壁纸源生命周期").FontSize(11).TextColor(ui.Hex("#94A3B8"))
-				ui.Box(c).Padding(10).Radius(8).Background(ui.Hex("#EFF6FF")).Border(1, ui.Hex("#DBEAFE")).Children(func() {
-					ui.Text(c, fmt.Sprintf("已登记 %d 个插件", len(a.pluginRecords))).FontSize(12).Bold().TextColor(ui.Hex("#1D4ED8"))
+// drawContextPanel renders the M3 companion panel next to the navigation
+// rail. It hosts the local library list (recent/favorites) or the online
+// category list, keeping every label the previous sidebar exposed.
+func (a *application) drawContextPanel(c *ui.Context, t *ui.Theme) {
+	scheme := m3Scheme(c)
+	ui.Column(c).Width(248).FillHeight().Padding(14, 12).Gap(12).
+		Background(scheme.SurfaceContainerLow).
+		BorderWidth(0, 1, 0, 0).BorderColor(scheme.OutlineVariant).Children(func() {
+		switch a.tab {
+		case "local":
+			a.drawLocalContext(c, scheme)
+		case "online":
+			a.drawOnlineContext(c, scheme)
+		default:
+			ui.Column(c).Grow(1).Gap(8).Children(func() {
+				ui.Text(c, "插件管理").FontSize(13).Bold().TextColor(scheme.OnSurface)
+				ui.Text(c, "安装本地 ZIP 插件包，管理壁纸源生命周期").FontSize(11).TextColor(scheme.OnSurfaceVariant)
+				ui.Box(c).Padding(12).Radius(12).Background(scheme.SecondaryContainer).Children(func() {
+					ui.Text(c, fmt.Sprintf("已登记 %d 个插件", len(a.pluginRecords))).FontSize(12).Bold().TextColor(scheme.OnSecondaryContainer)
 				})
 			})
 		}
+	})
+}
 
-		// 5. 底部信息与检查更新
-		ui.Column(c).Gap(10).FillWidth().Children(func() {
-			footerNote := "BGGo Desktop · 已是最新版"
-			if a.tab == "online" {
-				footerNote = "BGGo Desktop · 已连接微软官方CDN"
-			} else if a.tab == "plugins" {
-				footerNote = "BGGo Desktop · 插件运行在独立受限环境"
-			}
+// drawLocalContext hosts the local library: import action, drop hint, the
+// recent/favorites sub-tabs and the scrollable item list.
+func (a *application) drawLocalContext(c *ui.Context, scheme theme.ColorScheme) {
+	choose := mayu.FilledButton(c, "选择本地壁纸").Icon(symbols.Add).OnClick(a.chooseWallpaper)
+	choose.Width(220).Height(40)
+	ui.Row(c).AlignItems(ui.Center).FillWidth().Children(func() {
+		ui.Text(c, "或直接拖放图片到窗口").FontSize(11).TextColor(scheme.OnSurfaceVariant)
+	})
 
-			chkBtn := ui.ButtonBase(c.Key("btn-check-update")).FillWidth().Height(40).Radius(8).Background(ui.Hex("#FFFFFF")).Border(1, ui.Hex("#D1D5DB")).Tooltip("检查更新")
-			chkBtn.Children(func() {
-				ui.Row(c).Center().Gap(6).Children(func() {
-					ui.Icon(c, icons.Sparkles).Size(13, 13).TextColor(ui.Hex("#3B82F6"))
-					ui.Column(c).Gap(1).AlignItems(ui.Start).Children(func() {
-						ui.Text(c, "检查更新").FontSize(12).TextColor(ui.Hex("#1E293B")).Bold()
-						ui.Text(c, footerNote).FontSize(9).TextColor(ui.Hex("#94A3B8"))
-					})
+	// Sub-tabs: 最近使用 / 我的收藏. Both labels stay visible.
+	ui.Box(c).Radius(16).Padding(2).FillWidth().Background(scheme.SurfaceContainerHighest).Children(func() {
+		ui.Row(c).Gap(2).Fill().Children(func() {
+			for _, sub := range []struct{ key, label string }{
+				{"recent", fmt.Sprintf("最近使用 · %d", len(a.recent))},
+				{"favorites", fmt.Sprintf("我的收藏 · %d", len(a.favorites))},
+			} {
+				sub := sub
+				isActive := a.localSubTab == sub.key
+				btn := ui.ButtonBase(c.Key("sub-" + sub.key)).Grow(1).Height(32).Radius(14).Center()
+				if isActive {
+					btn.Background(scheme.SecondaryContainer)
+				}
+				btn.Children(func() {
+					col := scheme.OnSurfaceVariant
+					if isActive {
+						col = scheme.OnSecondaryContainer
+					}
+					ui.Text(c, sub.label).FontSize(11).Bold().TextColor(col)
 				})
-			})
-			if chkBtn.Clicked() {
-				a.checkForUpdates()
+				if btn.Clicked() {
+					a.localSubTab = sub.key
+				}
 			}
 		})
+	})
+
+	currentList := a.recent
+	emptyText := "还没有使用过壁纸"
+	listTitle := fmt.Sprintf("最近使用 · %d", len(a.recent))
+	if a.localSubTab == "favorites" {
+		currentList = a.favorites
+		emptyText = "还没有收藏的壁纸\n在大图预览点击爱心可添加收藏"
+		listTitle = fmt.Sprintf("我的收藏 · %d", len(a.favorites))
+	}
+
+	ui.Row(c).AlignItems(ui.Center).Justify(ui.SpaceBetween).FillWidth().Children(func() {
+		ui.Text(c, listTitle).FontSize(11).Bold().TextColor(scheme.OnSurfaceVariant)
+		if a.localSubTab != "favorites" && len(a.recent) > 0 {
+			clear := mayu.TextButton(c, "清空").OnClick(a.clearRecent)
+			clear.Height(28)
+		}
+	})
+
+	ui.Scroll(c).Grow(1).Gap(6).Children(func() {
+		if len(currentList) == 0 {
+			ui.Text(c, emptyText).FontSize(12).TextColor(scheme.OnSurfaceVariant)
+		}
+		for _, path := range currentList {
+			path := path
+			isSelected := a.selected == path
+			spec := a.getWallpaperSpec(path)
+			bg := ui.Transparent
+			if isSelected {
+				bg = scheme.SecondaryContainer
+			}
+			item := mayu.ListItem(c, filepath.Base(path), mayu.ListItemOptions{
+				SupportingText: spec,
+				OnClick:        func() { a.loadWallpaper(path) },
+				Trailing: func() {
+					if isSelected {
+						ui.Box(c).Size(22, 22).Radius(11).Background(scheme.PrimaryContainer).Center().Children(func() {
+							ui.Icon(c, icons.Check).Size(13, 13).TextColor(scheme.OnPrimaryContainer)
+						})
+					}
+				},
+			})
+			item.Background(bg).Radius(12)
+		}
+	})
+}
+
+// drawOnlineContext hosts the online category list.
+func (a *application) drawOnlineContext(c *ui.Context, scheme theme.ColorScheme) {
+	ui.Row(c).AlignItems(ui.Center).Justify(ui.SpaceBetween).FillWidth().Children(func() {
+		ui.Text(c, "壁纸分类").FontSize(13).Bold().TextColor(scheme.OnSurface)
+		refresh := mayu.TextButton(c, "刷新").OnClick(a.loadOnlineCategories)
+		refresh.Height(28)
+	})
+
+	ui.Scroll(c).Grow(1).Gap(6).Children(func() {
+		if len(a.categories) == 0 {
+			msg := "暂无分类数据"
+			if a.loadingOnline {
+				msg = "正在加载分类…"
+			}
+			ui.Text(c, msg).FontSize(12).TextColor(scheme.OnSurfaceVariant)
+		}
+		for _, cat := range a.categories {
+			cat := cat
+			isSelected := a.selectedCategory.ID == cat.ID && a.selectedCategory.Source == cat.Source
+			btn := ui.ButtonBase(c.Key("cat-"+cat.Source+"-"+cat.ID)).FillWidth().Height(40).Radius(12).Padding(0, 10).AlignItems(ui.Center)
+			if isSelected {
+				btn.Background(scheme.SecondaryContainer)
+			}
+			btn.Children(func() {
+				col := scheme.OnSurface
+				if isSelected {
+					col = scheme.OnSecondaryContainer
+				}
+				ui.Row(c).AlignItems(ui.Center).Gap(10).Fill().Children(func() {
+					ui.Icon(c, icons.ForCategory(cat.Name)).Size(16, 16).TextColor(col)
+					ui.Text(c, cat.Name).FontSize(12).Bold().TextColor(col).SingleLine()
+					ui.Spacer(c)
+					ui.Text(c, categoryBadge(cat)).FontSize(10).TextColor(col)
+				})
+			})
+			if btn.Clicked() {
+				a.onlinePage = 1
+				a.selectedCategory = cat
+				a.onlineView = "grid"
+				a.loadOnlineWallpapers(cat, 1)
+			}
+		}
 	})
 }
 
@@ -685,32 +587,31 @@ func (a *application) drawMainArea(c *ui.Context, t *ui.Theme) {
 	}
 }
 
-// drawLocalMain 绘制本地壁纸主页面
+// drawLocalMain renders the local wallpaper workspace with M3 surfaces.
 func (a *application) drawLocalMain(c *ui.Context, t *ui.Theme) {
-	ui.Column(c).Grow(1).FillHeight().Padding(18, 24, 20, 24).Gap(16).Background(ui.Hex("#FFFFFF")).Children(func() {
-		// 1. 顶部栏：标题、路径与 Segmented Control 胶囊分段选择器 (支持拖动窗口)
+	scheme := m3Scheme(c)
+	ui.Column(c).Grow(1).FillHeight().Padding(18, 22, 18, 22).Gap(14).Background(scheme.Surface).Children(func() {
 		ui.Row(c).AlignItems(ui.Center).FillWidth().DragWindow().Children(func() {
 			ui.Column(c).Gap(2).Grow(1).Children(func() {
-				ui.Text(c, "桌面壁纸预览").FontSize(18).Bold().TextColor(ui.Hex("#0F172A"))
-				ui.Text(c, selectedLabel(a.selected)).FontSize(12).TextColor(ui.Hex("#64748B")).MaxWidth(480).SingleLine()
+				ui.Text(c, "桌面壁纸预览").FontSize(18).Bold().TextColor(scheme.OnSurface)
+				ui.Text(c, selectedLabel(a.selected)).FontSize(12).TextColor(scheme.OnSurfaceVariant).MaxWidth(480).SingleLine()
 			})
 			ui.Spacer(c)
-
-			// 原生胶囊分段选择器 [ ⬒ 覆盖 | ⬓ 适应 | ⬖ 拉伸 ]
 			a.drawFitSelector(c, t)
 		})
 
-		// 2. 中央大图预览卡片 (纯净预览，不叠加装饰性桌面 Dock)
+		// 2. Image-first preview card (clean preview, no decorative desktop Dock).
 		a.drawLargePreviewBox(c, t)
 
-		// 3. 底部操作栏 (原型设计 3 元素：在文件夹中显示、VS Code 同步、应用到桌面)
+		// Action bar: show in folder, VS Code sync, apply to desktop.
 		a.drawLocalBottomBar(c, t)
 	})
 }
 
 // drawOnlineMain 绘制在线壁纸主页面
 func (a *application) drawOnlineMain(c *ui.Context, t *ui.Theme) {
-	ui.Column(c).Grow(1).FillHeight().Padding(18, 24, 20, 24).Gap(16).Background(ui.Hex("#FFFFFF")).Children(func() {
+	scheme := m3Scheme(c)
+	ui.Column(c).Grow(1).FillHeight().Padding(18, 22, 18, 22).Gap(14).Background(scheme.Surface).Children(func() {
 		// 1. 顶部控制栏：分类名、副标题、搜索框、筛选下拉 (两端对齐，标题不截断)
 		ui.Row(c).Justify(ui.SpaceBetween).AlignItems(ui.Center).FillWidth().DragWindow().Children(func() {
 			ui.Column(c).Gap(2).Children(func() {
@@ -732,30 +633,31 @@ func (a *application) drawOnlineMain(c *ui.Context, t *ui.Theme) {
 				}
 				ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
 					if a.onlineView == "preview" {
-						backBtn := ui.ButtonBase(c.Key("back-to-grid")).Padding(3, 8).Radius(6).Background(ui.Hex("#F1F5F9")).Border(1, ui.Hex("#CBD5E1"))
+						backBtn := ui.ButtonBase(c.Key("back-to-grid")).Padding(3, 8).Radius(6).Background(scheme.SurfaceContainerHighest)
 						backBtn.Children(func() {
 							ui.Row(c).AlignItems(ui.Center).Gap(4).Children(func() {
-								ui.Icon(c, icons.ChevronLeft).Size(12, 12).TextColor(ui.Hex("#475569"))
-								ui.Text(c, "◀ 返回列表").FontSize(11).TextColor(ui.Hex("#475569"))
+								ui.Icon(c, icons.ChevronLeft).Size(12, 12).TextColor(scheme.OnSurfaceVariant)
+								ui.Text(c, "◀ 返回列表").FontSize(11).TextColor(scheme.OnSurfaceVariant)
 							})
 						})
 						if backBtn.Clicked() {
 							a.onlineView = "grid"
 						}
 					}
-					ui.Text(c, "在线壁纸 · "+catName).FontSize(18).Bold().TextColor(ui.Hex("#0F172A")).SingleLine()
+					ui.Text(c, "在线壁纸 · "+catName).FontSize(18).Bold().TextColor(scheme.OnSurface).SingleLine()
 				})
-				ui.Text(c, sourceText).FontSize(11).TextColor(ui.Hex("#64748B")).SingleLine()
+				ui.Text(c, sourceText).FontSize(11).TextColor(scheme.OnSurfaceVariant).SingleLine()
 			})
 
 			ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
-				// 搜索框 (Breeze UI 风格，宽 180px)
-				breeze.SearchField(c, &a.searchKeyword).Placeholder("搜索壁纸关键词…").Width(180).Height(32)
+				// M3 search bar and select, themed by the active Material You scheme.
+				mayu.SearchBar(c, &a.searchKeyword, "搜索壁纸关键词…").Width(200)
+				mayu.Select(c, &a.filterOption, "", []components.SelectOption[string]{
+					{Value: "精选推荐", Label: "精选推荐"},
+					{Value: "最新壁纸", Label: "最新壁纸"},
+					{Value: "最高人气", Label: "最高人气"},
+				}).Width(150)
 
-				// 筛选下拉 (Breeze UI 风格)
-				breeze.Select(c, &a.filterOption, []string{"精选推荐", "最新壁纸", "最高人气"}).Height(32)
-
-				// 适应模式选择器 (在大图预览时显示)
 				if a.onlineView == "preview" {
 					a.drawFitSelector(c, t)
 				}
@@ -776,7 +678,8 @@ func (a *application) drawOnlineMain(c *ui.Context, t *ui.Theme) {
 
 // drawWallpaperGrid 绘制网格卡片列表 (原型图设计：卡片白底、阴影、4K UHD角标、双按钮)
 func (a *application) drawWallpaperGrid(c *ui.Context, t *ui.Theme) {
-	ui.Box(c).Grow(1).FillWidth().MinHeight(260).Radius(12).Clip().Background(ui.Hex("#F8FAFC")).Border(1, ui.Hex("#E2E8F0")).Padding(12, 12).Children(func() {
+	scheme := m3Scheme(c)
+	ui.Box(c).Grow(1).FillWidth().MinHeight(260).Radius(16).Clip().Background(scheme.SurfaceContainerLow).Border(1, scheme.OutlineVariant).Padding(12, 12).Children(func() {
 		if a.loadingOnline && len(a.wallpapers) == 0 {
 			ui.Column(c).Fill().Center().Gap(8).Children(func() {
 				ui.Text(c, "正在加载在线壁纸…").FontSize(16).Bold().TextColor(t.TextMuted)
@@ -834,12 +737,12 @@ func (a *application) drawWallpaperGrid(c *ui.Context, t *ui.Theme) {
 				for _, item := range displayed {
 					item := item
 					isSelected := a.selectedOnline != nil && a.selectedOnline.ID == item.ID
-					borderColor := ui.Hex("#E2E8F0")
+					borderColor := scheme.OutlineVariant
 					if isSelected {
-						borderColor = ui.Hex("#007AFF")
+						borderColor = scheme.Primary
 					}
 
-					ui.Column(c.Key("card-"+item.ID)).Padding(8, 8).Gap(8).Radius(10).Background(ui.Hex("#FFFFFF")).Border(1, borderColor).Children(func() {
+					ui.Column(c.Key("card-"+item.ID)).Padding(8, 8).Gap(8).Radius(10).Background(scheme.Surface).Border(1, borderColor).Children(func() {
 						// 缩略图盒子 + 左上角 4K UHD 胶囊徽标
 						ui.Box(c).Height(118).FillWidth().Radius(6).Clip().Children(func() {
 							a.thumbMu.Lock()
@@ -850,8 +753,8 @@ func (a *application) drawWallpaperGrid(c *ui.Context, t *ui.Theme) {
 								ui.Image(c, bmp).Fill().Radius(6).Fit(ui.Cover)
 							} else {
 								a.requestThumbnail(item)
-								ui.Box(c).Fill().Background(ui.Hex("#E2E8F0")).Center().Children(func() {
-									ui.Text(c, "加载中…").FontSize(11).TextColor(ui.Hex("#94A3B8"))
+								ui.Box(c).Fill().Background(scheme.OutlineVariant).Center().Children(func() {
+									ui.Text(c, "加载中…").FontSize(11).TextColor(scheme.OnSurfaceVariant)
 								})
 							}
 
@@ -861,22 +764,22 @@ func (a *application) drawWallpaperGrid(c *ui.Context, t *ui.Theme) {
 							}
 							// 顶层悬浮 Badge (Absolute 左上角)
 							ui.Box(c).Absolute().Top(8).Left(8).Padding(2, 6).Radius(4).Background(ui.Hex("#00000070")).Children(func() {
-								ui.Text(c, resBadge).FontSize(9).Bold().TextColor(ui.Hex("#FFFFFF"))
+								ui.Text(c, resBadge).FontSize(9).Bold().TextColor(scheme.Surface)
 							})
 						})
 
 						// 标题单行加粗 (符合原型设计)
 						ui.Row(c).AlignItems(ui.Center).FillWidth().Children(func() {
-							ui.Text(c, item.Title).FontSize(12).Bold().TextColor(ui.Hex("#0F172A")).Grow(1).SingleLine()
+							ui.Text(c, item.Title).FontSize(12).Bold().TextColor(scheme.OnSurface).Grow(1).SingleLine()
 						})
 
 						// 卡片操作按钮行：↗ 预览 / ✓ 应用 (等宽双按钮，对齐原型)
 						ui.Row(c).Gap(6).FillWidth().Children(func() {
-							prevBtn := ui.ButtonBase(c.Key("btn-prev-"+item.ID)).Grow(1).Height(28).Radius(6).Background(ui.Hex("#F1F5F9")).Border(1, ui.Hex("#CBD5E1"))
+							prevBtn := ui.ButtonBase(c.Key("btn-prev-"+item.ID)).Grow(1).Height(28).Radius(6).Background(scheme.SurfaceContainerHighest).Border(1, scheme.Outline)
 							prevBtn.Children(func() {
 								ui.Row(c).Center().Gap(4).Children(func() {
-									ui.Icon(c, icons.Eye).Size(12, 12).TextColor(ui.Hex("#475569"))
-									ui.Text(c, "↗ 预览").FontSize(11).TextColor(ui.Hex("#475569"))
+									ui.Icon(c, icons.Eye).Size(12, 12).TextColor(scheme.OnSurfaceVariant)
+									ui.Text(c, "↗ 预览").FontSize(11).TextColor(scheme.OnSurfaceVariant)
 								})
 							})
 							if prevBtn.Clicked() {
@@ -890,16 +793,16 @@ func (a *application) drawWallpaperGrid(c *ui.Context, t *ui.Theme) {
 							}
 							applyBtn := ui.ButtonBase(c.Key("btn-apply-" + item.ID)).Grow(1).Height(28).Radius(6).Disabled(a.busy)
 							if a.busy {
-								applyBtn.Background(ui.Hex("#94A3B8"))
+								applyBtn.Background(scheme.OnSurfaceVariant)
 							} else {
-								applyBtn.Background(ui.Hex("#007AFF"))
+								applyBtn.Background(scheme.Primary)
 							}
 							applyBtn.Children(func() {
 								ui.Row(c).Center().Gap(4).Children(func() {
 									if !(a.busy && isSelected) {
-										ui.Icon(c, icons.Check).Size(12, 12).TextColor(ui.Hex("#FFFFFF"))
+										ui.Icon(c, icons.Check).Size(12, 12).TextColor(scheme.Surface)
 									}
-									ui.Text(c, btnLabel).FontSize(11).Bold().TextColor(ui.Hex("#FFFFFF"))
+									ui.Text(c, btnLabel).FontSize(11).Bold().TextColor(scheme.Surface)
 								})
 							})
 							if applyBtn.Clicked() {
@@ -916,11 +819,17 @@ func (a *application) drawWallpaperGrid(c *ui.Context, t *ui.Theme) {
 
 // drawLargePreviewBox 绘制大图预览区域
 func (a *application) drawLargePreviewBox(c *ui.Context, t *ui.Theme) {
-	ui.Box(c).Grow(1).FillWidth().MinHeight(320).Radius(14).Clip().Background(ui.Hex("#0B192C")).Border(1, ui.Hex("#00000010")).Children(func() {
+	scheme := m3Scheme(c)
+	// The preview stage stays a deep neutral in BOTH appearances so wallpaper
+	// colors read true and the dark immersive gallery stays consistent. Using
+	// InverseSurface here would flip the stage to light in dark mode.
+	stageBg := ui.Hex("#1C1B1F")
+	stageFg := ui.Hex("#E6E1E5")
+	ui.Box(c).Grow(1).FillWidth().MinHeight(320).Radius(20).Clip().Background(stageBg).Children(func() {
 		if a.preview == nil {
 			ui.Column(c).Fill().Center().Gap(8).Children(func() {
-				ui.Text(c, "还没有选择壁纸").FontSize(18).Bold().TextColor(ui.Hex("#94A3B8"))
-				ui.Text(c, "支持 JPG、PNG、WebP 和 BMP").FontSize(12).TextColor(ui.Hex("#94A3B8"))
+				ui.Text(c, "还没有选择壁纸").FontSize(18).Bold().TextColor(stageFg)
+				ui.Text(c, "支持 JPG、PNG、WebP 和 BMP").FontSize(12).TextColor(stageFg.Alpha(0.7))
 			})
 			return
 		}
@@ -936,10 +845,10 @@ func (a *application) drawLargePreviewBox(c *ui.Context, t *ui.Theme) {
 		}
 
 		isApplied := a.applied != "" && a.selected == a.applied
-		dotColor := ui.Hex("#007AFF")
+		dotColor := scheme.Primary
 		statusBadge := "预览模式 (未应用)"
 		if isApplied {
-			dotColor = ui.Hex("#10B981")
+			dotColor = scheme.Tertiary
 			statusBadge = "当前系统桌面壁纸"
 		}
 
@@ -948,7 +857,7 @@ func (a *application) drawLargePreviewBox(c *ui.Context, t *ui.Theme) {
 			ui.Box(c).Padding(5, 12).Radius(20).Background(ui.Hex("#00000070")).Border(1, ui.Hex("#FFFFFF20")).Children(func() {
 				ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() {
 					ui.Box(c).Width(7).Height(7).Radius(4).Background(dotColor)
-					ui.Text(c, statusBadge).FontSize(11).Bold().TextColor(ui.Hex("#FFFFFF"))
+					ui.Text(c, statusBadge).FontSize(11).Bold().TextColor(scheme.Surface)
 				})
 			})
 
@@ -956,14 +865,14 @@ func (a *application) drawLargePreviewBox(c *ui.Context, t *ui.Theme) {
 			ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
 				// 1. 规格信息胶囊
 				ui.Box(c).Padding(4, 10).Radius(20).Background(ui.Hex("#00000060")).Children(func() {
-					ui.Text(c, resolutionText).FontSize(11).TextColor(ui.Hex("#E2E8F0"))
+					ui.Text(c, resolutionText).FontSize(11).TextColor(scheme.OutlineVariant)
 				})
 
 				// 2. 收藏胶囊按钮
 				isFav := a.IsFavorite(a.selected)
 				favBg := ui.Hex("#00000070")
 				favBorder := ui.Hex("#FFFFFF30")
-				favTextCol := ui.Hex("#FFFFFF")
+				favTextCol := scheme.Surface
 				favText := "收藏"
 				if isFav {
 					favBg = ui.Hex("#EF444440")
@@ -977,7 +886,7 @@ func (a *application) drawLargePreviewBox(c *ui.Context, t *ui.Theme) {
 						if isFav {
 							ui.Icon(c, icons.HeartFilled).Size(12, 12).TextColor(ui.Hex("#EF4444"))
 						} else {
-							ui.Icon(c, icons.Heart).Size(12, 12).TextColor(ui.Hex("#FFFFFF"))
+							ui.Icon(c, icons.Heart).Size(12, 12).TextColor(scheme.Surface)
 						}
 						ui.Text(c, favText).FontSize(11).Bold().TextColor(favTextCol)
 					})
@@ -990,8 +899,8 @@ func (a *application) drawLargePreviewBox(c *ui.Context, t *ui.Theme) {
 				saveBtn := ui.ButtonBase(c.Key("btn-preview-export")).Padding(4, 10).Radius(20).Background(ui.Hex("#00000070")).Border(1, ui.Hex("#FFFFFF30")).Disabled(a.selected == "")
 				saveBtn.Children(func() {
 					ui.Row(c).AlignItems(ui.Center).Gap(5).Children(func() {
-						ui.Icon(c, icons.Download).Size(12, 12).TextColor(ui.Hex("#FFFFFF"))
-						ui.Text(c, "另存为").FontSize(11).TextColor(ui.Hex("#FFFFFF"))
+						ui.Icon(c, icons.Download).Size(12, 12).TextColor(scheme.Surface)
+						ui.Text(c, "另存为").FontSize(11).TextColor(scheme.Surface)
 					})
 				})
 				if saveBtn.Clicked() {
@@ -1003,28 +912,41 @@ func (a *application) drawLargePreviewBox(c *ui.Context, t *ui.Theme) {
 	})
 }
 
-// drawFitSelector 绘制壁纸填充模式选择器 (原型图胶囊风格)
+// drawFitSelector draws the wallpaper fit mode as a single M3 segmented
+// button: one outlined track with three connected segments. The glyph-prefixed
+// strings live in Label() (accessibility + test contract) while the visible
+// face is clean text, so the control no longer looks like three loose pills.
 func (a *application) drawFitSelector(c *ui.Context, t *ui.Theme) {
-	ui.Box(c).Radius(8).Padding(3).Background(ui.Hex("#F1F5F9")).Children(func() {
-		ui.Row(c).Gap(2).Children(func() {
-			options := []struct {
-				val   string
-				label string
-			}{
-				{"覆盖", "⬒ 覆盖"},
-				{"适应", "⬓ 适应"},
-				{"拉伸", "⬖ 拉伸"},
-			}
-			for _, opt := range options {
+	scheme := m3Scheme(c)
+	options := []struct {
+		val   string
+		aria  string
+		label string
+	}{
+		{"覆盖", "⬒ 覆盖", "覆盖"},
+		{"适应", "⬓ 适应", "适应"},
+		{"拉伸", "⬖ 拉伸", "拉伸"},
+	}
+	ui.Box(c).Height(36).Padding(3).Radius(18).Background(scheme.SurfaceContainerHighest).Border(1, scheme.OutlineVariant).Clip().Children(func() {
+		ui.Row(c).FillHeight().Children(func() {
+			for i, opt := range options {
 				opt := opt
 				isSelected := a.fit == opt.val
-				btn := ui.Button(c.Key("seg-"+opt.val), opt.label).Padding(4, 10).Radius(6)
-				if isSelected {
-					btn.Background(ui.Hex("#FFFFFF")).TextColor(ui.Hex("#0F172A")).Bold()
-				} else {
-					btn.Background(ui.Hex("#00000000")).TextColor(ui.Hex("#64748B"))
+				segment := ui.ButtonBase(c.Key("seg-" + opt.val)).Width(58).FillHeight().Label(opt.aria)
+				if i > 0 {
+					segment.BorderWidth(0, 0, 0, 1).BorderColor(scheme.OutlineVariant)
 				}
-				if btn.Clicked() {
+				if isSelected {
+					segment.Background(scheme.SecondaryContainer).Radius(15)
+				}
+				segment.Center().Children(func() {
+					col := scheme.OnSurfaceVariant
+					if isSelected {
+						col = scheme.OnSecondaryContainer
+					}
+					ui.Text(c, opt.label).FontSize(12).Bold().TextColor(col).SingleLine()
+				})
+				if segment.Clicked() {
 					a.fit = opt.val
 				}
 			}
@@ -1032,82 +954,99 @@ func (a *application) drawFitSelector(c *ui.Context, t *ui.Theme) {
 	})
 }
 
+// drawActionButton renders a labeled action button: icon and caption on the
+// same row so every operation is self-explanatory without hovering a tooltip.
+// active gives the "VS Code 自动同步" toggle its on-state highlight.
+func drawActionButton(c *ui.Context, scheme theme.ColorScheme, key, label string, icon *ui.SVG, disabled, active bool) ui.Element {
+	bg := scheme.SurfaceContainerLow
+	fg := scheme.OnSurface
+	border := scheme.OutlineVariant
+	if active {
+		bg = scheme.SecondaryContainer
+		fg = scheme.OnSecondaryContainer
+		border = scheme.Outline
+	}
+	btn := ui.ButtonBase(c.Key(key)).Height(38).Padding(0, 12).Radius(19).
+		Background(bg).Border(1, border).Disabled(disabled).Label(label).Tooltip(label)
+	if !disabled && btn.Hovered() {
+		btn.Background(scheme.SurfaceContainerHigh)
+	}
+	btn.Children(func() {
+		ui.Row(c).AlignItems(ui.Center).Gap(7).Children(func() {
+			ui.Icon(c, icon).Size(15, 15).TextColor(fg)
+			ui.Text(c, label).FontSize(12).Bold().TextColor(fg).SingleLine()
+		})
+	})
+	return btn
+}
+
 // drawLocalBottomBar 绘制本地壁纸底部操作栏
 func (a *application) drawLocalBottomBar(c *ui.Context, t *ui.Theme) {
-	ui.Column(c).Gap(8).FillWidth().Children(func() {
-		// 状态单独占一行，避免和操作按钮争夺空间。
-		dotColor := ui.Hex("#10B981")
+	scheme := m3Scheme(c)
+	ui.Column(c).Gap(10).FillWidth().Children(func() {
+		// Status line on its own row so it never competes with the actions.
+		dotColor := scheme.Tertiary
 		if a.error {
-			dotColor = ui.Hex("#E81123")
+			dotColor = scheme.Error
 		} else if a.busy {
-			dotColor = ui.Hex("#007AFF")
+			dotColor = scheme.Primary
 		}
 		statusMsg := "已成功应用到桌面并同步"
 		if a.status != "" {
 			statusMsg = a.status
 		}
-
 		ui.Row(c).AlignItems(ui.Center).Gap(7).FillWidth().Children(func() {
 			ui.Box(c).Width(8).Height(8).Radius(4).Background(dotColor)
-			ui.Text(c, statusMsg).FontSize(12).TextColor(ui.Hex("#64748B")).SingleLine()
+			ui.Text(c, statusMsg).FontSize(12).TextColor(scheme.OnSurfaceVariant).SingleLine()
 		})
 
-		// 操作按钮只展示图标，中文说明通过悬浮提示和无障碍标签提供。
-		ui.Row(c).AlignItems(ui.Center).Justify(ui.End).Gap(12).FillWidth().Children(func() {
-			folderBtn := ui.ButtonBase(c.Key("btn-show-folder")).Width(40).Height(40).Radius(8).Background(ui.Hex("#F8FAFC")).Border(1, ui.Hex("#CBD5E1")).Disabled(a.selected == "").Label("在文件夹中显示").Tooltip("在文件夹中显示")
-			folderBtn.Center().Children(func() {
-				ui.Icon(c, icons.ExternalLink).Size(14, 14).TextColor(ui.Hex("#334155"))
-			})
-			if folderBtn.Clicked() {
-				mygo.Shell.ShowItemInFolder(a.selected)
-			}
+		// Action row: secondary actions on the left, primary apply on the right.
+		ui.Row(c).AlignItems(ui.Center).Justify(ui.SpaceBetween).Gap(10).FillWidth().Children(func() {
+			ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
+				folderBtn := drawActionButton(c, scheme, "btn-show-folder", "在文件夹中显示", icons.FolderOpen, a.selected == "", false)
+				if folderBtn.Clicked() {
+					mygo.Shell.ShowItemInFolder(a.selected)
+				}
 
-			vscodeBtn := ui.ButtonBase(c.Key("btn-map-vscode")).Width(40).Height(40).Radius(8).Background(ui.Hex("#F8FAFC")).Border(1, ui.Hex("#CBD5E1")).Disabled(a.selected == "" || a.busy).Label("映射到 VS Code").Tooltip("映射到 VS Code")
-			vscodeBtn.Center().Children(func() {
-				ui.Icon(c, icons.Code).Size(14, 14).TextColor(ui.Hex("#007AFF"))
-			})
-			if vscodeBtn.Clicked() {
-				a.applyVSCode()
-			}
+				vscodeBtn := drawActionButton(c, scheme, "btn-map-vscode", "映射到 VS Code", icons.Code, a.selected == "" || a.busy, false)
+				if vscodeBtn.Clicked() {
+					a.applyVSCode()
+				}
 
-			syncBackground := ui.Hex("#F8FAFC")
-			syncBorder := ui.Hex("#CBD5E1")
-			syncIconColor := ui.Hex("#64748B")
-			syncTip := "VS Code 自动同步（当前关闭）"
-			if a.syncVSCode {
-				syncBackground = ui.Hex("#EFF6FF")
-				syncBorder = ui.Hex("#BFDBFE")
-				syncIconColor = ui.Hex("#007AFF")
-				syncTip = "VS Code 自动同步（当前开启）"
-			}
-			syncBtn := ui.ButtonBase(c.Key("btn-sync-vscode")).Width(40).Height(40).Radius(8).Background(syncBackground).Border(1, syncBorder).Label("VS Code 自动同步").Tooltip(syncTip)
-			syncBtn.Center().Children(func() {
-				ui.Icon(c, icons.Refresh).Size(15, 15).TextColor(syncIconColor)
+				syncLabel := "VS Code 自动同步"
+				if a.syncVSCode {
+					syncLabel += " · 开"
+				} else {
+					syncLabel += " · 关"
+				}
+				syncBtn := drawActionButton(c, scheme, "btn-sync-vscode", syncLabel, icons.Refresh, false, a.syncVSCode)
+				if syncBtn.Clicked() {
+					a.syncVSCode = !a.syncVSCode
+					a.toggleSyncVSCode()
+				}
 			})
-			if syncBtn.Clicked() {
-				a.syncVSCode = !a.syncVSCode
-				a.toggleSyncVSCode()
-			}
 
-			applyTip := "应用到桌面"
+			applyDisabled := a.selected == "" || a.busy
+			applyText := "应用到桌面"
 			if a.selected == "" {
-				applyTip += "：请选择壁纸后应用"
+				applyText = "请选择壁纸"
 			}
-			applyBtn := ui.ButtonBase(c.Key("btn-apply-desktop")).Width(44).Height(44).Radius(8).Padding(0).Disabled(a.selected == "" || a.busy).Label("应用到桌面").Tooltip(applyTip)
-			if a.selected == "" || a.busy {
-				applyBtn.Background(ui.Hex("#93C5FD"))
-			} else {
-				applyBtn.Background(ui.Hex("#007AFF"))
+			applyBg := scheme.Primary
+			applyFg := scheme.OnPrimary
+			if applyDisabled {
+				applyBg = scheme.SurfaceContainerHighest
+				applyFg = scheme.OnSurfaceVariant
 			}
+			applyBtn := ui.ButtonBase(c.Key("btn-apply-desktop")).Height(42).Padding(0, 20).Radius(21).
+				Background(applyBg).Disabled(applyDisabled).Label("应用到桌面").Tooltip("应用到桌面")
 			applyBtn.Children(func() {
-				ui.Icon(c, icons.Check).Size(15, 15).TextColor(ui.Hex("#FFFFFF"))
+				ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
+					ui.Icon(c, icons.Check).Size(16, 16).TextColor(applyFg)
+					ui.Text(c, applyText).FontSize(13).Bold().TextColor(applyFg).SingleLine()
+				})
 			})
 			if applyBtn.Clicked() {
 				a.applyWallpaper()
-			}
-
-			if a.selected == "" {
-				ui.Text(c, "请选择壁纸后应用").FontSize(10).TextColor(ui.Hex("#64748B"))
 			}
 		})
 	})
@@ -1115,6 +1054,7 @@ func (a *application) drawLocalBottomBar(c *ui.Context, t *ui.Theme) {
 
 // drawOnlineBottomBar 绘制在线图库底部栏
 func (a *application) drawOnlineBottomBar(c *ui.Context, t *ui.Theme) {
+	scheme := m3Scheme(c)
 	// 在线大图预览态复用底部操作栏，支持直接设为壁纸与映射到 VS Code
 	if a.onlineView == "preview" {
 		a.drawLocalBottomBar(c, t)
@@ -1128,16 +1068,16 @@ func (a *application) drawOnlineBottomBar(c *ui.Context, t *ui.Theme) {
 			statusMsg = a.status
 		}
 
-		dotColor := ui.Hex("#10B981")
+		dotColor := scheme.Tertiary
 		if a.error {
-			dotColor = ui.Hex("#E81123")
+			dotColor = scheme.Error
 		} else if a.busy || a.loadingOnline {
-			dotColor = ui.Hex("#007AFF")
+			dotColor = scheme.Primary
 		}
 
 		ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() {
 			ui.Box(c).Width(7).Height(7).Radius(4).Background(dotColor)
-			ui.Text(c, statusMsg).FontSize(12).TextColor(ui.Hex("#64748B")).SingleLine()
+			ui.Text(c, statusMsg).FontSize(12).TextColor(scheme.OnSurfaceVariant).SingleLine()
 		})
 
 		ui.Spacer(c)
@@ -1166,11 +1106,11 @@ func (a *application) drawOnlineBottomBar(c *ui.Context, t *ui.Theme) {
 		}
 
 		ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() {
-			prevBtn := ui.ButtonBase(c.Key("page-prev")).Height(30).Padding(0, 10).Radius(6).Background(ui.Hex("#F8FAFC")).Border(1, ui.Hex("#E2E8F0")).Disabled(currentPage <= 1 || a.loadingOnline)
+			prevBtn := ui.ButtonBase(c.Key("page-prev")).Height(30).Padding(0, 10).Radius(6).Background(scheme.SurfaceContainerLow).Border(1, scheme.OutlineVariant).Disabled(currentPage <= 1 || a.loadingOnline)
 			prevBtn.Children(func() {
 				ui.Row(c).AlignItems(ui.Center).Gap(4).Children(func() {
-					ui.Icon(c, icons.ChevronLeft).Size(11, 11).TextColor(ui.Hex("#94A3B8"))
-					ui.Text(c, "◀ 上一页").FontSize(11).TextColor(ui.Hex("#94A3B8"))
+					ui.Icon(c, icons.ChevronLeft).Size(11, 11).TextColor(scheme.OnSurfaceVariant)
+					ui.Text(c, "◀ 上一页").FontSize(11).TextColor(scheme.OnSurfaceVariant)
 				})
 			})
 			if prevBtn.Clicked() && currentPage > 1 {
@@ -1183,14 +1123,14 @@ func (a *application) drawOnlineBottomBar(c *ui.Context, t *ui.Theme) {
 				if totalPages > 0 {
 					pageLabel = fmt.Sprintf("第 %d / %d 页", currentPage, totalPages)
 				}
-				ui.Text(c, pageLabel).FontSize(11).Bold().TextColor(ui.Hex("#1E293B"))
+				ui.Text(c, pageLabel).FontSize(11).Bold().TextColor(scheme.OnSurface)
 			})
 
-			nextBtn := ui.ButtonBase(c.Key("page-next")).Height(30).Padding(0, 10).Radius(6).Background(ui.Hex("#FFFFFF")).Border(1, ui.Hex("#E2E8F0")).Disabled(!a.onlineMore || a.loadingOnline)
+			nextBtn := ui.ButtonBase(c.Key("page-next")).Height(30).Padding(0, 10).Radius(6).Background(scheme.Surface).Border(1, scheme.OutlineVariant).Disabled(!a.onlineMore || a.loadingOnline)
 			nextBtn.Children(func() {
 				ui.Row(c).AlignItems(ui.Center).Gap(4).Children(func() {
-					ui.Text(c, "下一页 ▶").FontSize(11).TextColor(ui.Hex("#334155"))
-					ui.Icon(c, icons.ChevronRight).Size(11, 11).TextColor(ui.Hex("#334155"))
+					ui.Text(c, "下一页 ▶").FontSize(11).TextColor(scheme.OnSurface)
+					ui.Icon(c, icons.ChevronRight).Size(11, 11).TextColor(scheme.OnSurface)
 				})
 			})
 			if nextBtn.Clicked() && a.onlineMore {
