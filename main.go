@@ -288,12 +288,12 @@ func (a *application) drawTitleBar(c *ui.Context, t *ui.Theme) {
 		// 右侧自绘窗口控制按钮群 (最小化、最大化/还原、关闭)
 		ui.Row(c).Height(38).AlignItems(ui.Center).Children(func() {
 			// 1. 最小化按钮
-			minBtn := ui.ButtonBase(c.Key("win-min")).Width(44).Height(38).Tooltip("最小化")
+			minBtn := ui.ButtonBase(c.Key("win-min")).Width(44).Height(38).Label("最小化").Tooltip("最小化")
 			if minBtn.Hovered() {
 				minBtn.Background(ui.Hex("#F1F5F9"))
 			}
 			minBtn.Center().Children(func() {
-				ui.Text(c, "—").FontSize(11).TextColor(ui.Hex("#64748B"))
+				ui.Icon(c, icons.Minus).Size(12, 12).TextColor(ui.Hex("#64748B"))
 			})
 			if minBtn.Clicked() && a.window != nil {
 				a.window.Minimize()
@@ -301,32 +301,32 @@ func (a *application) drawTitleBar(c *ui.Context, t *ui.Theme) {
 
 			// 2. 最大化 / 还原按钮
 			isMax := a.window != nil && a.window.IsMaximized()
-			maxIcon := "□"
+			maxIcon := icons.Square
 			maxTooltip := "最大化"
 			if isMax {
-				maxIcon = "❐"
+				maxIcon = icons.Copy
 				maxTooltip = "还原"
 			}
-			maxBtn := ui.ButtonBase(c.Key("win-max")).Width(44).Height(38).Tooltip(maxTooltip)
+			maxBtn := ui.ButtonBase(c.Key("win-max")).Width(44).Height(38).Label(maxTooltip).Tooltip(maxTooltip)
 			if maxBtn.Hovered() {
 				maxBtn.Background(ui.Hex("#F1F5F9"))
 			}
 			maxBtn.Center().Children(func() {
-				ui.Text(c, maxIcon).FontSize(12).TextColor(ui.Hex("#64748B"))
+				ui.Icon(c, maxIcon).Size(12, 12).TextColor(ui.Hex("#64748B"))
 			})
 			if maxBtn.Clicked() && a.window != nil {
 				a.window.ToggleMaximize()
 			}
 
 			// 3. 关闭按钮 (Hover 时呈现红色背景与白色文字)
-			closeBtn := ui.ButtonBase(c.Key("win-close")).Width(44).Height(38).Tooltip("关闭")
+			closeBtn := ui.ButtonBase(c.Key("win-close")).Width(44).Height(38).Label("关闭").Tooltip("关闭")
 			closeTextColor := ui.Hex("#64748B")
 			if closeBtn.Hovered() {
 				closeBtn.Background(ui.Hex("#EF4444"))
 				closeTextColor = ui.Hex("#FFFFFF")
 			}
 			closeBtn.Center().Children(func() {
-				ui.Text(c, "✕").FontSize(11).TextColor(closeTextColor)
+				ui.Icon(c, icons.X).Size(13, 13).TextColor(closeTextColor)
 			})
 			if closeBtn.Clicked() && a.window != nil {
 				if a.tray != nil {
@@ -598,7 +598,7 @@ func (a *application) drawSidebar(c *ui.Context, t *ui.Theme) {
 					for _, cat := range a.categories {
 						cat := cat
 						isSelected := a.selectedCategory.ID == cat.ID && a.selectedCategory.Source == cat.Source
-						icon := categoryIcon(cat.Name)
+						icon := icons.ForCategory(cat.Name)
 						badgeCount := categoryBadge(cat)
 
 						cardBg := ui.Hex("#00000000")
@@ -620,7 +620,7 @@ func (a *application) drawSidebar(c *ui.Context, t *ui.Theme) {
 						btn.Children(func() {
 							ui.Row(c).AlignItems(ui.Center).Justify(ui.SpaceBetween).Fill().Children(func() {
 								ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
-									ui.Text(c, icon).FontSize(13)
+									ui.Icon(c, icon).Size(14, 14).TextColor(textCol)
 									lbl := ui.Text(c, cat.Name).FontSize(12).TextColor(textCol)
 									if isSelected {
 										lbl.Bold()
@@ -700,7 +700,7 @@ func (a *application) drawLocalMain(c *ui.Context, t *ui.Theme) {
 			a.drawFitSelector(c, t)
 		})
 
-		// 2. 中央大图预览卡片 (内嵌 macOS Dock Simulator)
+		// 2. 中央大图预览卡片 (纯净预览，不叠加装饰性桌面 Dock)
 		a.drawLargePreviewBox(c, t)
 
 		// 3. 底部操作栏 (原型设计 3 元素：在文件夹中显示、VS Code 同步、应用到桌面)
@@ -2204,45 +2204,6 @@ func (a *application) initTray() {
 			}
 		}
 	})
-}
-
-func categoryIcon(name string) string {
-	switch {
-	case strings.Contains(name, "必应"):
-		return "🌟"
-	case strings.Contains(name, "4K"):
-		return "🖥"
-	case strings.Contains(name, "风景"):
-		return "🏞"
-	case strings.Contains(name, "动漫"):
-		return "🌸"
-	case strings.Contains(name, "美女"):
-		return "💃"
-	case strings.Contains(name, "爱情"):
-		return "❤️"
-	case strings.Contains(name, "游戏"):
-		return "🎮"
-	case strings.Contains(name, "萌宠") || strings.Contains(name, "动物"):
-		return "🐱"
-	case strings.Contains(name, "汽车"):
-		return "🚗"
-	case strings.Contains(name, "清新"):
-		return "🌿"
-	case strings.Contains(name, "视觉") || strings.Contains(name, "炫彩"):
-		return "🎨"
-	case strings.Contains(name, "明星"):
-		return "✨"
-	case strings.Contains(name, "影视"):
-		return "🎬"
-	case strings.Contains(name, "军事"):
-		return "⚔️"
-	case strings.Contains(name, "文字"):
-		return "✍️"
-	case strings.Contains(name, "体育"):
-		return "⚽"
-	default:
-		return "🖼"
-	}
 }
 
 func shouldPreventClose(quitting bool, hasTray bool) bool {

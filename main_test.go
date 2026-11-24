@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"bggo/internal/icons"
 	"bggo/internal/library"
 	"bggo/internal/online"
 	"bggo/internal/updater"
@@ -402,20 +403,31 @@ func TestCategoryIcon(t *testing.T) {
 		name string
 		want string
 	}{
-		{"必应每日精选", "🌟"},
-		{"4K专区", "🖥"},
-		{"风景大片", "🏞"},
-		{"动漫卡通", "🌸"},
-		{"游戏壁纸", "🎮"},
-		{"萌宠动物", "🐱"},
-		{"汽车天下", "🚗"},
-		{"小清新", "🌿"},
-		{"其他分类", "🖼"},
+		{"必应每日精选", "bing"},
+		{"4K专区", "4k"},
+		{"风景大片", "landscape"},
+		{"动漫卡通", "anime"},
+		{"美女写真", "love"},
+		{"爱情壁纸", "love"},
+		{"游戏壁纸", "game"},
+		{"萌宠动物", "pet"},
+		{"汽车天下", "car"},
+		{"小清新", "fresh"},
+		{"视觉炫彩", "visual"},
+		{"明星", "star"},
+		{"影视", "movie"},
+		{"军事", "military"},
+		{"文字", "text"},
+		{"体育", "sports"},
+		{"其他分类", "default"},
 	}
 
 	for _, tc := range tests {
-		if got := categoryIcon(tc.name); got != tc.want {
-			t.Errorf("categoryIcon(%q) = %q, want %q", tc.name, got, tc.want)
+		if got := icons.CategoryKey(tc.name); got != tc.want {
+			t.Errorf("icons.CategoryKey(%q) = %q, want %q", tc.name, got, tc.want)
+		}
+		if icons.ForCategory(tc.name) == nil {
+			t.Errorf("icons.ForCategory(%q) returned nil", tc.name)
 		}
 	}
 }
@@ -1094,10 +1106,17 @@ func TestTitleBarButtonsAndNoTrafficLights(t *testing.T) {
 		t.Errorf("missing version badge %q in titlebar", AppVersion)
 	}
 
-	// 2. 验证恢复上一版的窗口控制按钮：最小化、最大化、关闭
-	for _, btnIcon := range []string{"—", "□", "✕"} {
-		if !tt.HasText(btnIcon) {
-			t.Errorf("missing window control button %q in titlebar", btnIcon)
+	// 2. 验证窗口控制按钮改用 Lucide 图标后仍有稳定的无障碍标签。
+	//    图标本身不产生文本，故通过 Label 提供的名称断言：最小化、最大化、关闭。
+	for _, btnLabel := range []string{"最小化", "最大化", "关闭"} {
+		if !tt.HasText(btnLabel) {
+			t.Errorf("missing accessible label %q for window control in titlebar", btnLabel)
+		}
+	}
+	// 图标按钮不应再出现旧的字符画符号。
+	for _, glyph := range []string{"—", "□", "✕"} {
+		if tt.HasText(glyph) {
+			t.Errorf("unexpected legacy text glyph %q in titlebar", glyph)
 		}
 	}
 }

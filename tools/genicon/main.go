@@ -1,4 +1,9 @@
 // Command genicon creates the BGGo application icon using only the Go standard library.
+//
+// The icon is defined once here and kept in sync with resources/icon.svg:
+// a blue rounded tile (matching the in-app Breeze UI accent) carrying a white
+// sun above a two-peak mountain silhouette — the universal "wallpaper" motif.
+// Large, high-contrast shapes keep it legible down to tray size (16x16).
 package main
 
 import (
@@ -9,21 +14,41 @@ import (
 	"os"
 )
 
+const (
+	size  = 1024
+	tileR = 224 // 圆角半径
+	sunX  = 736
+	sunY  = 288
+	sunR  = 96
+)
+
+// 连绵山峰：右峰高于左峰，太阳位于右峰上方，两者不重叠。
+var peaks = [][2]int{
+	{96, 812}, {350, 500}, {520, 660}, {700, 440}, {936, 780}, {936, 940}, {96, 940},
+}
+
+// 蓝色主题渐变端点，与 Breeze UI 主色 (#2563EB) 对齐。
+var (
+	gradStart = color.RGBA{79, 140, 255, 255} // #4F8CFF
+	gradEnd   = color.RGBA{37, 99, 235, 255}  // #2563EB
+	white     = color.RGBA{255, 255, 255, 255}
+)
+
 func main() {
 	output := "resources/icon.png"
 	if len(os.Args) > 1 {
 		output = os.Args[1]
 	}
-	img := image.NewRGBA(image.Rect(0, 0, 1024, 1024))
-	paint(img, func(x, y int) bool { return rounded(x, y, 0, 0, 1024, 1024, 224) }, color.RGBA{255, 244, 223, 255})
-	paintGradient(img, func(x, y int) bool { return rounded(x, y, 80, 80, 944, 944, 172) })
-	paint(img, func(x, y int) bool { return circle(x, y, 726, 318, 104) }, color.RGBA{255, 230, 168, 255})
-	paint(img, func(x, y int) bool {
-		return inPolygon(x, y, [][2]int{{80, 720}, {354, 430}, {544, 620}, {656, 504}, {944, 774}, {944, 944}, {80, 944}})
-	}, color.RGBA{7, 40, 36, 255})
-	paint(img, func(x, y int) bool {
-		return inPolygon(x, y, [][2]int{{80, 830}, {378, 556}, {544, 722}, {664, 598}, {944, 842}, {944, 944}, {80, 944}})
-	}, color.RGBA{13, 91, 79, 255})
+	img := image.NewRGBA(image.Rect(0, 0, size, size))
+
+	// 1. 蓝色渐变圆角底
+	paintGradient(img, func(x, y int) bool { return rounded(x, y, 0, 0, size, size, tileR) })
+
+	// 2. 白色太阳（右上）
+	paint(img, func(x, y int) bool { return circle(x, y, sunX, sunY, sunR) }, white)
+
+	// 3. 白色连绵山峰（底部）
+	paint(img, func(x, y int) bool { return inPolygon(x, y, peaks) }, white)
 
 	file, err := os.Create(output)
 	if err != nil {
@@ -36,8 +61,8 @@ func main() {
 }
 
 func paint(img *image.RGBA, inside func(int, int) bool, c color.RGBA) {
-	for y := range 1024 {
-		for x := range 1024 {
+	for y := range size {
+		for x := range size {
 			if inside(x, y) {
 				img.SetRGBA(x, y, c)
 			}
@@ -46,20 +71,29 @@ func paint(img *image.RGBA, inside func(int, int) bool, c color.RGBA) {
 }
 
 func paintGradient(img *image.RGBA, inside func(int, int) bool) {
-	for y := range 1024 {
-		for x := range 1024 {
+	for y := range size {
+		for x := range size {
 			if !inside(x, y) {
 				continue
 			}
-			t := float64(x+y-160) / 1728
+			t := float64(x+y) / float64(2*size-2)
+			if t < 0 {
+				t = 0
+			} else if t > 1 {
+				t = 1
+			}
 			img.SetRGBA(x, y, color.RGBA{
-				R: uint8(255 - 25*t),
-				G: uint8(122 - 63*t),
-				B: uint8(69 - 23*t),
+				R: lerp(gradStart.R, gradEnd.R, t),
+				G: lerp(gradStart.G, gradEnd.G, t),
+				B: lerp(gradStart.B, gradEnd.B, t),
 				A: 255,
 			})
 		}
 	}
+}
+
+func lerp(a, b uint8, t float64) uint8 {
+	return uint8(float64(a) + (float64(b)-float64(a))*t)
 }
 
 func rounded(x, y, left, top, right, bottom, radius int) bool {
