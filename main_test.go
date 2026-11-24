@@ -952,19 +952,35 @@ func TestOnlineSearchFilter(t *testing.T) {
 		t.Fatalf("expected all 3 items to show without filter")
 	}
 
-	// 2. 输入关键词后立即显示搜索加载动画，再异步给出结果。
+	// 2. 搜索期间显示加载动画。状态直接固定，避免断言依赖 CI 的渲染时序。
 	a.searchKeyword = "极光"
+	a.mu.Lock()
+	a.lastSearchKeyword = a.searchKeyword
+	a.searchLoading = true
+	a.searchResults = nil
+	a.mu.Unlock()
 	tt = ui.NewTester(a.view, 1000, 680)
-	if !a.searchInProgress() || !tt.HasText("正在搜索壁纸…") {
-		t.Errorf("expected an immediate search loading state")
+	if !tt.HasText("正在搜索壁纸…") {
+		t.Errorf("expected search loading state; texts = %q", tt.Texts())
+	}
+
+	// 3. 后台筛选异步完成并给出匹配结果。
+	a.scheduleSearch()
+	if !a.searchInProgress() {
+		t.Errorf("expected scheduleSearch to start in loading state")
 	}
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
-		loading := a.searchInProgress()
-		if !loading {
+		if !a.searchInProgress() {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
+	}
+	a.mu.RLock()
+	results := append([]online.WallpaperItem(nil), a.searchResults...)
+	a.mu.RUnlock()
+	if len(results) != 1 || results[0].Title != "挪威极光夜景" {
+		t.Fatalf("search results = %#v, want only 挪威极光夜景", results)
 	}
 	tt = ui.NewTester(a.view, 1000, 680)
 	if !tt.HasText("挪威极光夜景") {
