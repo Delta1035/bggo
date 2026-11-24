@@ -7,7 +7,7 @@ import (
 )
 
 func TestPluginManagerViewShowsBuiltinsAndInstallEntry(t *testing.T) {
-	a := newApplication()
+	a := newTestApplication(t)
 	a.tab = "plugins"
 	tester := ui.NewTester(a.view, 1000, 680)
 	for _, text := range []string{

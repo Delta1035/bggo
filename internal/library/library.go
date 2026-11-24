@@ -76,6 +76,50 @@ func (s *Store) Add(path string) (State, error) {
 	return state, nil
 }
 
+// Prune removes entries rejected by keep from both lists and persists the
+// cleaned state. It lets the app repair histories that contain deleted files
+// or records written by older/test builds without exposing broken rows.
+func (s *Store) Prune(keep func(string) bool) (State, error) {
+	state, err := s.Load()
+	if err != nil {
+		return State{}, err
+	}
+	clean := func(paths []string) []string {
+		var next []string
+		seen := make(map[string]bool, len(paths))
+		for _, p := range paths {
+			if seen[p] || !keep(p) {
+				continue
+			}
+			seen[p] = true
+			next = append(next, p)
+		}
+		return next
+	}
+	recent := clean(state.Recent)
+	favorites := clean(state.Favorites)
+	if samePaths(recent, state.Recent) && samePaths(favorites, state.Favorites) {
+		return state, nil
+	}
+	state.Recent, state.Favorites = recent, favorites
+	if err := s.save(state); err != nil {
+		return State{}, err
+	}
+	return state, nil
+}
+
+func samePaths(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
 // ClearRecent 清空最近使用壁纸列表
 func (s *Store) ClearRecent() (State, error) {
 	state, err := s.Load()

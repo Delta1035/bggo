@@ -1,14 +1,20 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#4f8cff"/>
-      <stop offset="1" stop-color="#2563eb"/>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4338CA"/>
+      <stop offset="1" stop-color="#7C3AED"/>
     </linearGradient>
+    <clipPath id="tileClip"><rect width="1024" height="1024" rx="224"/></clipPath>
+    <clipPath id="frontClip"><rect x="380" y="110" width="520" height="380" rx="56"/></clipPath>
   </defs>
-  <!-- 蓝色圆角底，与 Breeze UI 主色一致 -->
-  <rect width="1024" height="1024" rx="224" fill="url(#bg)"/>
-  <!-- 白色太阳（右上） -->
-  <circle cx="736" cy="288" r="96" fill="#ffffff"/>
-  <!-- 白色连绵山峰：右峰高于左峰 -->
-  <path d="M96 812 350 500 520 660 700 440 936 780 936 940 96 940Z" fill="#ffffff"/>
+  <g clip-path="url(#tileClip)">
+    <rect width="1024" height="1024" fill="url(#tile)"/>
+    <rect x="140" y="350" width="520" height="380" rx="56" fill="#FFFFFF" opacity="0.41"/>
+    <rect x="260" y="230" width="520" height="380" rx="56" fill="#FFFFFF" opacity="0.69"/>
+    <rect x="380" y="110" width="520" height="380" rx="56" fill="#FFFFFF"/>
+    <g clip-path="url(#frontClip)" fill="#6D4ADE">
+      <circle cx="748" cy="300" r="44"/>
+      <path d="M410 540 L540 408 L640 500 L755 382 L890 520 L890 620 L410 620 Z"/>
+    </g>
+  </g>
 </svg>

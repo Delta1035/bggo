@@ -25,6 +25,16 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
+// newTestApplication keeps every test away from the real user configuration.
+// Without this, applying a wallpaper in a test wrote a temp path into the
+// user's recent list and left rows that could no longer be opened.
+func newTestApplication(t *testing.T) *application {
+	t.Helper()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	return newApplication()
+}
+
 func TestInitialView(t *testing.T) {
 	a := &application{fit: "覆盖", status: "选择一张图片开始"}
 	tt := ui.NewTester(a.view, 1000, 680)
@@ -117,16 +127,19 @@ func TestCheckForUpdates(t *testing.T) {
 	if !called {
 		t.Errorf("expected checkUpdate callback to be called")
 	}
-	if a.status != "正在检查应用更新…" {
-		t.Errorf("status = %q, want %q", a.status, "正在检查应用更新…")
+	if a.updateUI.phase != "checking" {
+		t.Errorf("update phase = %q, want %q", a.updateUI.phase, "checking")
 	}
-	if a.error {
-		t.Errorf("expected error=false")
+	if !a.updateOpen {
+		t.Errorf("expected update panel to be open")
+	}
+	if a.status != "" {
+		t.Errorf("update progress must not appear in the preview status row, got %q", a.status)
 	}
 }
 
 func TestApplication_InitUpdater(t *testing.T) {
-	a := newApplication()
+	a := newTestApplication(t)
 	if a.updaterSvc == nil {
 		t.Fatalf("expected updaterSvc to be initialized")
 	}
@@ -163,13 +176,13 @@ func TestApplication_HandleCheckForUpdates_UpToDate(t *testing.T) {
 
 	a.checkForUpdates()
 
-	// Wait for goroutine in handleCheckForUpdates to complete
+	// Wait for the inline update panel to reach its terminal state.
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
 		a.mu.RLock()
-		st := a.status
+		phase := a.updateUI.phase
 		a.mu.RUnlock()
-		if strings.Contains(st, "已是最新版本") {
+		if phase == "latest" {
 			break
 		}
 		time.Sleep(20 * time.Millisecond)
@@ -177,9 +190,15 @@ func TestApplication_HandleCheckForUpdates_UpToDate(t *testing.T) {
 
 	a.mu.RLock()
 	defer a.mu.RUnlock()
-	expectedStatus := fmt.Sprintf("BGGo 已是最新版本 (%s)", AppVersion)
-	if a.status != expectedStatus {
-		t.Errorf("status = %q, want %q", a.status, expectedStatus)
+	if a.updateUI.phase != "latest" {
+		t.Fatalf("update phase = %q, want %q", a.updateUI.phase, "latest")
+	}
+	expectedMessage := fmt.Sprintf("BGGo 已是最新版本 (%s)", AppVersion)
+	if a.updateUI.message != expectedMessage {
+		t.Errorf("message = %q, want %q", a.updateUI.message, expectedMessage)
+	}
+	if a.status != "" {
+		t.Errorf("status = %q, want empty (no status-row update text)", a.status)
 	}
 }
 
@@ -212,13 +231,13 @@ func TestApplication_HandleCheckForUpdates_UpdateAvailable(t *testing.T) {
 
 	a.checkForUpdates()
 
-	// Wait for goroutine in handleCheckForUpdates to complete
+	// Wait for the inline update panel to offer an install action.
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
 		a.mu.RLock()
-		st := a.status
+		phase := a.updateUI.phase
 		a.mu.RUnlock()
-		if strings.Contains(st, "发现新版本 0.9.9") {
+		if phase == "available" {
 			break
 		}
 		time.Sleep(20 * time.Millisecond)
@@ -226,9 +245,17 @@ func TestApplication_HandleCheckForUpdates_UpdateAvailable(t *testing.T) {
 
 	a.mu.RLock()
 	defer a.mu.RUnlock()
-	expectedStatus := "发现新版本 0.9.9！"
-	if a.status != expectedStatus {
-		t.Errorf("status = %q, want %q", a.status, expectedStatus)
+	if a.updateUI.phase != "available" {
+		t.Fatalf("update phase = %q, want %q", a.updateUI.phase, "available")
+	}
+	if a.updateUI.version != "0.9.9" {
+		t.Errorf("version = %q, want %q", a.updateUI.version, "0.9.9")
+	}
+	if a.updateUI.notes != "Awesome release" {
+		t.Errorf("notes = %q, want %q", a.updateUI.notes, "Awesome release")
+	}
+	if !a.updateBadge {
+		t.Errorf("expected rail badge for available update")
 	}
 }
 
@@ -260,8 +287,12 @@ func TestApplication_RunSilentUpdateCheck(t *testing.T) {
 
 	a.mu.RLock()
 	defer a.mu.RUnlock()
-	if !strings.Contains(a.status, "发现新版本 0.9.9") {
-		t.Errorf("expected status to mention new version, got %q", a.status)
+	if !a.updateBadge || a.updateUI.version != "0.9.9" {
+		t.Errorf("silent check should only set rail badge/version, got badge=%v version=%q status=%q",
+			a.updateBadge, a.updateUI.version, a.status)
+	}
+	if a.status != "" {
+		t.Errorf("silent check must not write preview status, got %q", a.status)
 	}
 }
 
@@ -308,7 +339,7 @@ func TestApplyVSCode_AutoInstallExtension(t *testing.T) {
 }
 
 func TestOnlineViewTabsAndControls(t *testing.T) {
-	a := newApplication()
+	a := newTestApplication(t)
 	a.tab = "online"
 	a.categories = []online.Category{
 		{ID: "bing_daily", Name: "必应每日精选", Source: "bing"},
@@ -335,7 +366,7 @@ func TestOnlineViewTabsAndControls(t *testing.T) {
 }
 
 func TestOnlineGridRenderingWithItems(t *testing.T) {
-	a := newApplication()
+	a := newTestApplication(t)
 	a.tab = "online"
 	a.onlineView = "grid"
 	a.categories = []online.Category{
@@ -364,10 +395,10 @@ func TestOnlineGridRenderingWithItems(t *testing.T) {
 		"4K UHD",
 		"极简星空大片",
 		"1920x1080",
-		"↗ 预览",
-		"✓ 应用",
-		"◀ 上一页",
-		"下一页 ▶",
+		"预览",
+		"应用",
+		"上一页",
+		"下一页",
 	} {
 		if !tt.HasText(text) {
 			t.Errorf("missing text %q in grid view; texts = %q", text, tt.Texts())
@@ -376,7 +407,7 @@ func TestOnlineGridRenderingWithItems(t *testing.T) {
 }
 
 func TestOnlinePreviewModeRendering(t *testing.T) {
-	a := newApplication()
+	a := newTestApplication(t)
 	a.tab = "online"
 	a.onlineView = "preview"
 	a.categories = []online.Category{
@@ -458,6 +489,15 @@ func (m *testWallpaperSetter) Path() string {
 	return m.calledPath
 }
 
+func writeTestWallpaper(t *testing.T, name string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), name)
+	if err := os.WriteFile(path, generateTestPNG(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
 func generateTestPNG() []byte {
 	img := image.NewRGBA(image.Rect(0, 0, 2, 2))
 	img.Set(0, 0, color.RGBA{R: 255, G: 0, B: 0, A: 255})
@@ -483,7 +523,7 @@ func TestApplyOnlineWallpaper(t *testing.T) {
 	onlineSvc.Client = srv.Client()
 
 	mockSetter := &testWallpaperSetter{done: make(chan struct{})}
-	a := newApplication()
+	a := newTestApplication(t)
 	a.onlineSvc = onlineSvc
 	a.setter = mockSetter
 	a.syncVSCode = false
@@ -534,7 +574,7 @@ func TestPreviewOnlineWallpaper(t *testing.T) {
 	}
 	onlineSvc.Client = srv.Client()
 
-	a := newApplication()
+	a := newTestApplication(t)
 	a.onlineSvc = onlineSvc
 
 	item := online.WallpaperItem{
@@ -603,7 +643,7 @@ func TestLoadOnlineCategoriesAndWallpapers(t *testing.T) {
 	onlineSvc.Qihoo.BaseURL = srv.URL
 	onlineSvc.Qihoo.Client = srv.Client()
 
-	a := newApplication()
+	a := newTestApplication(t)
 	a.onlineSvc = onlineSvc
 
 	a.loadOnlineCategories()
@@ -629,13 +669,14 @@ func TestLoadOnlineCategoriesAndWallpapers(t *testing.T) {
 func TestFavoritesAndSubTabs(t *testing.T) {
 	tmpDir := t.TempDir()
 	store := library.NewStoreWithPath(filepath.Join(tmpDir, "library.json"))
-	_, _, _ = store.ToggleFavorite("/tmp/fav1.png")
+	favFile := writeTestWallpaper(t, "fav1.png")
+	_, _, _ = store.ToggleFavorite(favFile)
 
-	a := newApplication()
+	a := newTestApplication(t)
 	a.store = store
 	a.tab = "local"
-	a.recent = []string{"/tmp/recent1.png"}
-	a.favorites = []string{"/tmp/fav1.png"}
+	a.recent = []string{writeTestWallpaper(t, "recent1.png")}
+	a.favorites = []string{favFile}
 
 	// 1. 测试侧边栏渲染原型设计的 "最近使用 · 1" 和 "清空"
 	tt := ui.NewTester(a.view, 1000, 680)
@@ -647,7 +688,7 @@ func TestFavoritesAndSubTabs(t *testing.T) {
 	}
 
 	// 2. 切换收藏
-	testPath := "/tmp/test_fav.png"
+	testPath := writeTestWallpaper(t, "test_fav.png")
 	a.toggleFavorite(testPath)
 	if !a.IsFavorite(testPath) {
 		t.Errorf("expected testPath to be favorited")
@@ -695,7 +736,7 @@ func TestAutoBingSync(t *testing.T) {
 	onlineSvc.Bing.Client = srv.Client()
 
 	mockSetter := &testWallpaperSetter{}
-	a := newApplication()
+	a := newTestApplication(t)
 	a.store = store
 	a.onlineSvc = onlineSvc
 	a.setter = mockSetter
@@ -723,9 +764,9 @@ func TestAutoBingSync(t *testing.T) {
 func TestBottomBarFavAndExport(t *testing.T) {
 	tmpDir := t.TempDir()
 	store := library.NewStoreWithPath(filepath.Join(tmpDir, "library.json"))
-	a := newApplication()
+	a := newTestApplication(t)
 	a.store = store
-	a.selected = filepath.Join(tmpDir, "test.png")
+	a.selected = writeTestWallpaper(t, "test.png")
 
 	// 1. 自动同步开启时，图标按钮仍提供稳定的中文无障碍标签。
 	a.syncVSCode = true
@@ -763,7 +804,7 @@ func TestPreviewStatusLabel_AppliedVsPreviewing(t *testing.T) {
 	pngPath := filepath.Join(tmpDir, "wallpaper.png")
 	_ = os.WriteFile(pngPath, generateTestPNG(), 0o644)
 
-	a := newApplication()
+	a := newTestApplication(t)
 	a.loadWallpaper(pngPath)
 	waitForWallpaper(t, a, pngPath)
 
@@ -791,9 +832,9 @@ func TestPreviewStatusLabel_AppliedVsPreviewing(t *testing.T) {
 func TestClearRecent_Workflow(t *testing.T) {
 	tmpDir := t.TempDir()
 	store := library.NewStoreWithPath(filepath.Join(tmpDir, "library.json"))
-	a := newApplication()
+	a := newTestApplication(t)
 	a.store = store
-	a.recent = []string{"/path/1.png", "/path/2.png"}
+	a.recent = []string{writeTestWallpaper(t, "1.png"), writeTestWallpaper(t, "2.png")}
 	a.localSubTab = "recent"
 
 	tt := ui.NewTester(a.view, 1000, 680)
@@ -814,25 +855,28 @@ func TestClearRecent_Workflow(t *testing.T) {
 }
 
 func TestFitSelectorVisualLabels(t *testing.T) {
-	a := newApplication()
+	a := newTestApplication(t)
 	tt := ui.NewTester(a.view, 1000, 680)
 
-	for _, label := range []string{"⬒ 覆盖", "⬓ 适应", "⬖ 拉伸"} {
+	for _, label := range fitNames {
 		if !tt.HasText(label) {
 			t.Errorf("missing fit mode label %q", label)
 		}
 	}
 
-	if err := tt.Click("⬓ 适应"); err != nil {
-		t.Fatalf("failed to click '⬓ 适应': %v", err)
+	if err := tt.Click("适应"); err != nil {
+		t.Fatalf("failed to click '适应': %v", err)
 	}
 	if a.fit != "适应" {
 		t.Errorf("expected fit='适应', got %q", a.fit)
 	}
+	if a.fitIndex != 1 {
+		t.Errorf("expected fitIndex=1, got %d", a.fitIndex)
+	}
 }
 
 func TestDropHintInSidebar(t *testing.T) {
-	a := newApplication()
+	a := newTestApplication(t)
 	tt := ui.NewTester(a.view, 1000, 680)
 	if !tt.HasText("或直接拖放图片到窗口") {
 		t.Errorf("missing drop hint '或直接拖放图片到窗口' in local view")
@@ -879,7 +923,7 @@ func TestPreviewDoesNotRenderDesktopDock(t *testing.T) {
 	pngPath := filepath.Join(tmpDir, "dock_test.png")
 	_ = os.WriteFile(pngPath, generateTestPNG(), 0o644)
 
-	a := newApplication()
+	a := newTestApplication(t)
 	a.loadWallpaper(pngPath)
 	waitForWallpaper(t, a, pngPath)
 
@@ -893,7 +937,7 @@ func TestPreviewDoesNotRenderDesktopDock(t *testing.T) {
 }
 
 func TestOnlineSearchFilter(t *testing.T) {
-	a := newApplication()
+	a := newTestApplication(t)
 	a.tab = "online"
 	a.onlineView = "grid"
 	a.wallpapers = []online.WallpaperItem{
@@ -908,11 +952,23 @@ func TestOnlineSearchFilter(t *testing.T) {
 		t.Fatalf("expected all 3 items to show without filter")
 	}
 
-	// 2. 搜索 "极光"
+	// 2. 输入关键词后立即显示搜索加载动画，再异步给出结果。
 	a.searchKeyword = "极光"
 	tt = ui.NewTester(a.view, 1000, 680)
+	if !a.searchInProgress() || !tt.HasText("正在搜索壁纸…") {
+		t.Errorf("expected an immediate search loading state")
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		loading := a.searchInProgress()
+		if !loading {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	tt = ui.NewTester(a.view, 1000, 680)
 	if !tt.HasText("挪威极光夜景") {
-		t.Errorf("expected '挪威极光夜景' to match '极光'")
+		t.Errorf("expected '挪威极光夜景' to match '极光'; texts = %q", tt.Texts())
 	}
 	if tt.HasText("阿尔卑斯山金色晨曦") {
 		t.Errorf("did not expect '阿尔卑斯山金色晨曦' when filtering '极光'")
@@ -920,7 +976,7 @@ func TestOnlineSearchFilter(t *testing.T) {
 }
 
 func TestOnlineCard4KUHDBadge(t *testing.T) {
-	a := newApplication()
+	a := newTestApplication(t)
 	a.tab = "online"
 	a.onlineView = "grid"
 	a.wallpapers = []online.WallpaperItem{
@@ -939,10 +995,10 @@ func TestFavoritesSubTabUIAndCards(t *testing.T) {
 	_ = os.WriteFile(favFile, generateTestPNG(), 0o644)
 	store := library.NewStoreWithPath(filepath.Join(tmpDir, "library.json"))
 
-	a := newApplication()
+	a := newTestApplication(t)
 	a.store = store
 	a.tab = "local"
-	a.recent = []string{"/tmp/recent1.png"}
+	a.recent = []string{writeTestWallpaper(t, "recent1.png")}
 	a.favorites = []string{favFile}
 
 	// 1. 默认展示最近使用
@@ -976,7 +1032,7 @@ func TestLargePreviewActionControls_FavAndExport(t *testing.T) {
 	_ = os.WriteFile(pngPath, generateTestPNG(), 0o644)
 	store := library.NewStoreWithPath(filepath.Join(tmpDir, "library.json"))
 
-	a := newApplication()
+	a := newTestApplication(t)
 	a.store = store
 	a.loadWallpaper(pngPath)
 	waitForWallpaper(t, a, pngPath)
@@ -1014,7 +1070,7 @@ func TestBottomBarStandaloneMapVSCode(t *testing.T) {
 		return []byte("ok"), nil
 	}
 
-	a := newApplication()
+	a := newTestApplication(t)
 	a.selected = dummyImg
 	a.vscode = vscode.Service{
 		UserDir:       userDir,
@@ -1040,7 +1096,7 @@ func TestBottomBarStandaloneMapVSCode(t *testing.T) {
 }
 
 func TestOnlineGridFilterSortingOptions(t *testing.T) {
-	a := newApplication()
+	a := newTestApplication(t)
 	a.tab = "online"
 	a.onlineView = "grid"
 	a.wallpapers = []online.WallpaperItem{
@@ -1072,7 +1128,7 @@ func TestOnlineGridFilterSortingOptions(t *testing.T) {
 }
 
 func TestOnlineBottomBar_PreviewModeClosureAndBingPagination(t *testing.T) {
-	a := newApplication()
+	a := newTestApplication(t)
 	a.tab = "online"
 
 	// 1. 测试必应源单页分页限制
@@ -1095,7 +1151,7 @@ func TestOnlineBottomBar_PreviewModeClosureAndBingPagination(t *testing.T) {
 }
 
 func TestTitleBarButtonsAndNoTrafficLights(t *testing.T) {
-	a := newApplication()
+	a := newTestApplication(t)
 	tt := ui.NewTester(a.view, 1000, 680)
 
 	// 1. 验证顶置全宽自绘标题栏及品牌文字
@@ -1163,4 +1219,175 @@ func waitForWallpaper(t *testing.T, a *application, path string) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatalf("timed out waiting for wallpaper %q, status=%q", path, a.Status())
+}
+
+func TestLocalLibraryThumbnailDecoding(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "thumb.png")
+	if err := os.WriteFile(path, generateTestPNG(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	bmp, err := decodeLibraryThumbnail(path)
+	if err != nil {
+		t.Fatalf("decodeLibraryThumbnail() error = %v", err)
+	}
+	w, h := bmp.Size()
+	if max(w, h) > libraryThumbSize {
+		t.Fatalf("thumbnail size = %dx%d, want <= %d", w, h, libraryThumbSize)
+	}
+
+	a := &application{
+		fit:            "覆盖",
+		status:         "选择一张图片开始",
+		tab:            "local",
+		localSubTab:    "recent",
+		libraryBitmaps: map[string]*ui.Bitmap{path: bmp},
+		libraryLoading: map[string]bool{},
+		libraryFailed:  map[string]bool{},
+		recent:         []string{path},
+	}
+	tt := ui.NewTester(a.view, 1000, 680)
+	if !tt.HasText("thumb.png") {
+		t.Errorf("expected local list to show the file name; texts = %q", tt.Texts())
+	}
+}
+
+func TestOnlineDataSourceFilter(t *testing.T) {
+	a := newTestApplication(t)
+	a.tab = "online"
+	a.categories = []online.Category{
+		{ID: "daily", Name: "必应每日精选", Source: "bing"},
+		{ID: "4k", Name: "4K专区", Source: "360"},
+	}
+	a.selectedCategory = a.categories[0]
+
+	if names := a.sourceOptions(); len(names) < 3 {
+		t.Fatalf("sourceOptions() = %v, want all-sources plus registered providers", names)
+	}
+
+	a.activeSource = "360"
+	a.selectedCategory = a.categories[1]
+	tt := ui.NewTester(a.view, 1000, 680)
+	if !tt.HasText("切换数据源：360 壁纸") {
+		t.Errorf("missing active source label; texts = %q", tt.Texts())
+	}
+	if !tt.HasText("4K专区") {
+		t.Errorf("expected categories from the active source")
+	}
+	if tt.HasText("必应每日精选") {
+		t.Errorf("categories from other sources must be hidden; texts = %q", tt.Texts())
+	}
+}
+
+func TestOnlinePreviewEntersImmediately(t *testing.T) {
+	a := newTestApplication(t)
+	item := online.WallpaperItem{
+		ID: "slow", Title: "慢速高清图", Source: "bing",
+		FullURL: "http://127.0.0.1:1/never-resolves",
+	}
+
+	a.previewOnlineWallpaper(item)
+	if a.onlineView != "preview" {
+		t.Errorf("onlineView = %q, want preview before the download starts", a.onlineView)
+	}
+	if !a.hdLoading || a.preview != nil {
+		t.Errorf("expected HD loading state with cleared preview, got loading=%v preview=%v", a.hdLoading, a.preview)
+	}
+
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		a.mu.RLock()
+		loading := a.hdLoading
+		a.mu.RUnlock()
+		if !loading {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	if a.hdLoading || a.hdError == "" {
+		t.Errorf("expected failed HD load to end with an error, got loading=%v error=%q", a.hdLoading, a.hdError)
+	}
+}
+
+func TestUpdatePanelRendersInline(t *testing.T) {
+	a := &application{
+		fit:    "覆盖",
+		status: "选择一张图片开始",
+	}
+	a.updateOpen = true
+	a.updateUI = updateUIState{
+		phase:   "available",
+		version: "v9.9.9",
+		message: "发现新版本 v9.9.9",
+		notes:   "全新的壁纸体验",
+	}
+
+	tt := ui.NewTester(a.view, 1000, 680)
+	for _, text := range []string{"应用更新", "发现新版本 v9.9.9", "立即更新", "查看详情"} {
+		if !tt.HasText(text) {
+			t.Errorf("missing update panel text %q; texts = %q", text, tt.Texts())
+		}
+	}
+	if a.status != "选择一张图片开始" {
+		t.Errorf("update state leaked into preview status: %q", a.status)
+	}
+}
+
+func TestRecentInvalidRecordsPruned(t *testing.T) {
+	valid := writeTestWallpaper(t, "valid.png")
+	configPath := filepath.Join(t.TempDir(), "library.json")
+	store := library.NewStoreWithPath(configPath)
+	state := library.State{
+		Recent:    []string{"/tmp/stale-1.png", valid, "/tmp/stale-2.png", valid},
+		Favorites: []string{"/tmp/stale-fav.jpg"},
+	}
+	data, err := json.Marshal(state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(configPath, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cleaned, err := store.Prune(usableWallpaperPath)
+	if err != nil {
+		t.Fatalf("Prune() error = %v", err)
+	}
+	if len(cleaned.Recent) != 1 || cleaned.Recent[0] != valid {
+		t.Fatalf("recent after prune = %#v, want only %q", cleaned.Recent, valid)
+	}
+	if len(cleaned.Favorites) != 0 {
+		t.Fatalf("favorites after prune = %#v, want empty", cleaned.Favorites)
+	}
+	persisted, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(persisted.Recent) != 1 || persisted.Recent[0] != valid {
+		t.Fatalf("persisted recent = %#v", persisted.Recent)
+	}
+
+	a := newTestApplication(t)
+	a.store = store
+	a.tab = "local"
+	a.localSubTab = "recent"
+	a.recent = []string{"/tmp/stale-1.png", valid}
+	tt := ui.NewTester(a.view, 1000, 680)
+	if !tt.HasText("valid.png") || tt.HasText("stale-1.png") {
+		t.Errorf("rendered list should only contain the usable path; texts = %q", tt.Texts())
+	}
+}
+
+func TestOnlineCategoryLoadingIndicator(t *testing.T) {
+	a := newTestApplication(t)
+	a.tab = "online"
+	a.onlineView = "grid"
+	a.loadingCategories = true
+
+	tt := ui.NewTester(a.view, 1000, 680)
+	if !tt.HasText("同步中") {
+		t.Errorf("expected category sync indicator; texts = %q", tt.Texts())
+	}
 }

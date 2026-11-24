@@ -2,12 +2,14 @@ package main
 
 import (
 	"fmt"
+	"strings"
 
 	"bggo/internal/icons"
 	"bggo/internal/plugin"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 	"github.com/harukizmoe/mayu"
+	"github.com/harukizmoe/mayu/components"
 )
 
 func (a *application) drawPluginManager(c *ui.Context, t *ui.Theme) {
@@ -60,7 +62,14 @@ func (a *application) drawPluginManager(c *ui.Context, t *ui.Theme) {
 			if a.error {
 				color = scheme.Error
 			}
-			ui.Text(c, a.pluginStatus).FontSize(12).TextColor(color).SingleLine()
+			ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
+				if a.busy || strings.HasPrefix(a.pluginStatus, "正在") {
+					mayu.CircularProgress(c, -1, components.CircularProgressOptions{
+						Size: 14, Width: 2, IndicatorColor: scheme.Primary,
+					})
+				}
+				ui.Text(c, a.pluginStatus).FontSize(12).TextColor(color).SingleLine()
+			})
 		}
 
 		ui.Row(c).AlignItems(ui.Center).Justify(ui.SpaceBetween).FillWidth().Children(func() {

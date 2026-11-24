@@ -32,13 +32,14 @@ import (
 	"github.com/harukizmoe/mayu/symbols"
 	"github.com/harukizmoe/mayu/theme"
 	_ "golang.org/x/image/bmp"
+	"golang.org/x/image/draw"
 	_ "golang.org/x/image/webp"
 )
 
 //go:embed resources/icon.png
 var appIconBytes []byte
 
-const AppVersion = "v0.2.12"
+const AppVersion = "v0.2.18"
 
 // m3SeedColor is the brand blue that seeds Mayu's Material You tonal palettes.
 // Both light and dark schemes are derived from it at runtime.
@@ -46,6 +47,16 @@ var m3SeedColor = ui.Hex("#007AFF")
 
 // m3Scheme returns the active Material 3 color scheme for the current frame.
 func m3Scheme(c *ui.Context) theme.ColorScheme { return mayu.Scheme(c) }
+
+// drawBrandMark uses the standalone violet app icon for identity positions,
+// keeping the blue Lucide set for functional controls only.
+func (a *application) drawBrandMark(c *ui.Context, size float32, fallback *ui.SVG, color ui.Color) {
+	if a.brandIcon != nil {
+		ui.Image(c, a.brandIcon).Size(size, size).Radius(size / 4).Fit(ui.Cover).Label("BGGo 应用图标")
+		return
+	}
+	ui.Icon(c, fallback).Size(size, size).TextColor(color)
+}
 
 const (
 	maxWallpaperFileBytes int64 = 64 << 20
@@ -56,8 +67,21 @@ type wallpaperSetter interface {
 	Set(path string) error
 }
 
+// updateUIState drives the inline update panel anchored to the navigation
+// rail. Keeping it out of a.status stops update messages from appearing in
+// the wallpaper preview's bottom status row.
+type updateUIState struct {
+	phase    string // "" | checking | available | latest | downloading | installed | error
+	message  string
+	version  string
+	notes    string
+	progress float32 // -1 = indeterminate
+	result   *updater.CheckResult
+}
+
 type application struct {
 	window      *mygo.Window
+	brandIcon   *ui.Bitmap
 	store       *library.Store
 	setter      wallpaperSetter
 	vscode      vscode.Service
@@ -74,9 +98,26 @@ type application struct {
 	error       bool
 	updaterSvc  *updater.Service
 	checkUpdate func()
+	updateOpen  bool
+	updateBadge bool
+	updateUI    updateUIState
 
 	// 本地浏览子标签
 	localSubTab string // "recent" | "favorites"
+	fitIndex    int    // 预览填充方式 segment index, kept in sync with fit
+
+	// 异步加载状态：本地图片、在线高清原图与缩略图各自独立，避免互相覆盖。
+	localLoading   bool
+	hdLoading      bool
+	hdError        string
+	localLoadError string
+	libraryBitmaps map[string]*ui.Bitmap
+	libraryLoading map[string]bool
+	libraryFailed  map[string]bool
+	libraryMu      sync.Mutex
+	filterMenuOpen bool
+	sourceMenuOpen bool
+	activeSource   string // "" means all sources
 
 	// 在线壁纸相关
 	onlineSvc                 *online.Service
@@ -106,6 +147,11 @@ type application struct {
 	onlineMore                bool
 	onlineTotal               int
 	loadingOnline             bool
+	loadingCategories         bool
+	searchLoading             bool
+	lastSearchKeyword         string
+	searchResults             []online.WallpaperItem
+	searchSeq                 atomic.Uint64
 	thumbBitmaps              map[string]*ui.Bitmap
 	thumbLoading              map[string]bool
 	recentBitmaps             map[string]*ui.Bitmap
@@ -117,19 +163,56 @@ type application struct {
 	mu       sync.RWMutex
 }
 
+// usableWallpaperPath rejects records that can no longer be previewed:
+// missing files, directories, empty files and unsupported formats. Online
+// cache files pass this check, while stale /tmp entries from old test runs do
+// not.
+func usableWallpaperPath(path string) bool {
+	if path == "" || filepath.Ext(path) == "" {
+		return false
+	}
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".jpg", ".jpeg", ".png", ".webp", ".bmp":
+	default:
+		return false
+	}
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir() && info.Size() > 0
+}
+
+func usableWallpaperPaths(paths []string) []string {
+	var result []string
+	seen := make(map[string]bool, len(paths))
+	for _, path := range paths {
+		if seen[path] || !usableWallpaperPath(path) {
+			continue
+		}
+		seen[path] = true
+		result = append(result, path)
+	}
+	return result
+}
+
 func newApplication() *application {
+	brandIcon, _ := ui.DecodeBitmap(appIconBytes)
 	a := &application{
-		setter:        wallpaper.Service{},
-		fit:           "覆盖",
-		status:        "选择一张图片开始",
-		tab:           "local",
-		localSubTab:   "recent",
-		onlineView:    "grid",
-		onlinePage:    1,
-		filterOption:  "精选推荐",
-		thumbBitmaps:  make(map[string]*ui.Bitmap),
-		thumbLoading:  make(map[string]bool),
-		recentBitmaps: make(map[string]*ui.Bitmap),
+		brandIcon:      brandIcon,
+		setter:         wallpaper.Service{},
+		fit:            "覆盖",
+		status:         "选择一张图片开始",
+		tab:            "local",
+		localSubTab:    "recent",
+		onlineView:     "grid",
+		onlinePage:     1,
+		filterOption:   "精选推荐",
+		fitIndex:       fitIndex("覆盖"),
+		activeSource:   "",
+		thumbBitmaps:   make(map[string]*ui.Bitmap),
+		thumbLoading:   make(map[string]bool),
+		recentBitmaps:  make(map[string]*ui.Bitmap),
+		libraryBitmaps: make(map[string]*ui.Bitmap),
+		libraryLoading: make(map[string]bool),
+		libraryFailed:  make(map[string]bool),
 	}
 
 	a.initUpdater()
@@ -160,18 +243,15 @@ func newApplication() *application {
 	if state.Notice != "" {
 		a.setStatus(state.Notice, true)
 	}
-	for _, path := range state.Recent {
-		if _, err := os.Stat(path); err == nil {
-			a.recent = append(a.recent, path)
-		}
-	}
+	a.recent = usableWallpaperPaths(state.Recent)
 	if len(a.recent) > 0 {
 		a.applied = a.recent[0]
 	}
-	for _, path := range state.Favorites {
-		if _, err := os.Stat(path); err == nil {
-			a.favorites = append(a.favorites, path)
-		}
+	a.favorites = usableWallpaperPaths(state.Favorites)
+	// Repair the on-disk history as well; otherwise every launch re-reads the
+	// broken entries and any code path using the raw state can resurrect them.
+	if a.store != nil {
+		_, _ = a.store.Prune(usableWallpaperPath)
 	}
 	if a.autoBing {
 		go a.runAutoBingCheck()
@@ -298,8 +378,8 @@ func (a *application) drawNavigationRail(c *ui.Context, t *ui.Theme) {
 		Background(scheme.Surface).
 		BorderWidth(0, 1, 0, 0).BorderColor(scheme.OutlineVariant).Children(func() {
 		ui.Column(c).FillWidth().AlignItems(ui.Center).Gap(10).Children(func() {
-			ui.Box(c).Size(44, 44).Radius(14).Background(scheme.Primary).Center().Children(func() {
-				ui.Icon(c, icons.Image).Size(24, 24).TextColor(scheme.OnPrimary)
+			ui.Box(c).Size(44, 44).Radius(14).Center().Children(func() {
+				a.drawBrandMark(c, 44, icons.Image, scheme.OnPrimary)
 			})
 
 			destinations := []struct {
@@ -344,11 +424,115 @@ func (a *application) drawNavigationRail(c *ui.Context, t *ui.Theme) {
 		})
 
 		chk := ui.ButtonBase(c.Key("rail-check-update")).Size(44, 44).Radius(22).Center().Tooltip("检查更新").Label("检查更新")
+		if a.updateUI.phase == "available" || a.updateBadge {
+			chk.Border(1, scheme.Primary)
+		}
 		chk.Children(func() {
+			if a.updateUI.phase == "checking" || a.updateUI.phase == "downloading" {
+				mayu.CircularProgress(c, -1, components.CircularProgressOptions{Size: 18, Width: 2, IndicatorColor: scheme.Primary})
+				return
+			}
 			ui.Icon(c, icons.Sparkles).Size(18, 18).TextColor(scheme.Primary)
+			if a.updateBadge {
+				ui.Box(c).Absolute().Top(8).Right(8).Size(7, 7).Radius(4).Background(scheme.Error)
+			}
 		})
 		if chk.Clicked() {
-			a.checkForUpdates()
+			if a.updateOpen {
+				a.updateOpen = false
+			} else {
+				a.updateOpen = true
+				if a.updateUI.phase == "" || a.updateUI.phase == "latest" || a.updateUI.phase == "error" {
+					a.checkForUpdates()
+				}
+			}
+		}
+		ui.PopoverBase(c, chk, &a.updateOpen, func(panel ui.Element) {
+			panel.AttachTo(chk, ui.AnchorEnd, ui.AnchorStart).MarginStart(8).
+				Width(300).Padding(16).Radius(14).
+				Background(scheme.SurfaceContainerHigh).Border(1, scheme.OutlineVariant).
+				Shadow(0, 3, 12, 3, scheme.Shadow.Alpha(0.2))
+			panel.Children(func() { a.drawUpdatePanel(c, scheme) })
+		})
+	})
+}
+
+// drawUpdatePanel renders every state of the update flow in one place: no
+// modal dialogs and no status line under the wallpaper preview.
+func (a *application) drawUpdatePanel(c *ui.Context, scheme theme.ColorScheme) {
+	ui.Column(c).Gap(10).FillWidth().Children(func() {
+		ui.Row(c).AlignItems(ui.Center).Justify(ui.SpaceBetween).FillWidth().Children(func() {
+			ui.Text(c, "应用更新").FontSize(14).Bold().TextColor(scheme.OnSurface)
+			closeBtn := ui.ButtonBase(c.Key("update-panel-close")).Size(24, 24).Radius(12).Center().Label("关闭更新面板")
+			closeBtn.Children(func() {
+				ui.Icon(c, symbols.Close).Size(14, 14).TextColor(scheme.OnSurfaceVariant)
+			})
+			if closeBtn.Clicked() {
+				a.updateOpen = false
+			}
+		})
+		ui.Box(c).Height(1).FillWidth().Background(scheme.OutlineVariant)
+
+		switch a.updateUI.phase {
+		case "checking":
+			ui.Row(c).AlignItems(ui.Center).Gap(10).Children(func() {
+				mayu.CircularProgress(c, -1, components.CircularProgressOptions{Size: 20, Width: 3})
+				ui.Text(c, "正在检查应用更新…").FontSize(12).TextColor(scheme.OnSurface)
+			})
+		case "available":
+			ui.Column(c).Gap(8).FillWidth().Children(func() {
+				ui.Text(c, "发现新版本 "+a.updateUI.version).FontSize(13).Bold().TextColor(scheme.OnSurface)
+				if a.updateUI.notes != "" {
+					ui.Text(c, a.updateUI.notes).FontSize(11).TextColor(scheme.OnSurfaceVariant).MaxWidth(260)
+				}
+				ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() {
+					install := mayu.FilledButton(c, "立即更新").OnClick(a.startUpdateInstall)
+					install.Height(32)
+					detail := mayu.TextButton(c, "查看详情").OnClick(a.openReleasePage)
+					detail.Height(32)
+				})
+			})
+		case "latest":
+			ui.Column(c).Gap(8).Children(func() {
+				ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
+					ui.Icon(c, symbols.Check).Size(18, 18).TextColor(scheme.Primary)
+					ui.Text(c, a.updateUI.message).FontSize(12).TextColor(scheme.OnSurface)
+				})
+			})
+		case "downloading":
+			ui.Column(c).Gap(8).Children(func() {
+				progress := a.updateUI.progress
+				mayu.CircularProgress(c, progress, components.CircularProgressOptions{
+					Size: 28, Width: 3, IndicatorColor: scheme.Primary,
+				})
+				ui.Text(c, a.updateUI.message).FontSize(12).TextColor(scheme.OnSurface)
+			})
+		case "installed":
+			ui.Column(c).Gap(8).Children(func() {
+				ui.Text(c, a.updateUI.message).FontSize(12).TextColor(scheme.OnSurface)
+				if a.updateUI.notes != "" {
+					ui.Text(c, a.updateUI.notes).FontSize(10).TextColor(scheme.OnSurfaceVariant).MaxWidth(260)
+				}
+				ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() {
+					restart := mayu.FilledButton(c, "重启应用").OnClick(a.relaunchAfterUpdate)
+					restart.Height(32)
+					later := mayu.TextButton(c, "稍后").OnClick(func() { a.updateOpen = false })
+					later.Height(32)
+				})
+			})
+		case "error":
+			ui.Column(c).Gap(8).Children(func() {
+				ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
+					ui.Icon(c, symbols.Info).Size(18, 18).TextColor(scheme.Error)
+					ui.Text(c, a.updateUI.message).FontSize(12).TextColor(scheme.OnSurface)
+				})
+				retry := mayu.TextButton(c, "重试").OnClick(a.checkForUpdates)
+				retry.Height(32)
+			})
+		default:
+			ui.Text(c, "检查是否有可用的 BGGo 新版本。").FontSize(12).TextColor(scheme.OnSurfaceVariant)
+			check := mayu.FilledButton(c, "开始检查").OnClick(a.checkForUpdates)
+			check.Height(32)
 		}
 	})
 }
@@ -360,8 +544,8 @@ func (a *application) drawTitleBar(c *ui.Context, t *ui.Theme) {
 	ui.Row(c).Height(40).FillWidth().Background(scheme.SurfaceContainerLow).BorderWidth(0, 0, 1, 0).BorderColor(scheme.OutlineVariant).AlignItems(ui.Center).DragWindow().Children(func() {
 		// Brand: icon + title + version pill.
 		ui.Row(c).AlignItems(ui.Center).Gap(8).Padding(0, 14).Children(func() {
-			ui.Box(c).Width(24).Height(24).Radius(8).Background(scheme.Primary).Center().Children(func() {
-				ui.Icon(c, icons.Image).Size(14, 14).TextColor(scheme.OnPrimary)
+			ui.Box(c).Width(24).Height(24).Radius(8).Center().Children(func() {
+				a.drawBrandMark(c, 24, icons.Image, scheme.OnPrimary)
 			})
 			ui.Text(c, "BGGo 壁纸").FontSize(13).Bold().TextColor(scheme.OnSurface)
 			ui.Box(c).Padding(2, 7).Radius(10).Background(scheme.SurfaceContainerHighest).Center().Children(func() {
@@ -453,6 +637,11 @@ func (a *application) drawContextPanel(c *ui.Context, t *ui.Theme) {
 // drawLocalContext hosts the local library: import action, drop hint, the
 // recent/favorites sub-tabs and the scrollable item list.
 func (a *application) drawLocalContext(c *ui.Context, scheme theme.ColorScheme) {
+	// Re-check at render time: a file can disappear while the app is running.
+	// Broken rows must never be shown as clickable history entries.
+	recentList := usableWallpaperPaths(a.recent)
+	favoriteList := usableWallpaperPaths(a.favorites)
+
 	choose := mayu.FilledButton(c, "选择本地壁纸").Icon(symbols.Add).OnClick(a.chooseWallpaper)
 	choose.Width(220).Height(40)
 	ui.Row(c).AlignItems(ui.Center).FillWidth().Children(func() {
@@ -463,8 +652,8 @@ func (a *application) drawLocalContext(c *ui.Context, scheme theme.ColorScheme) 
 	ui.Box(c).Radius(16).Padding(2).FillWidth().Background(scheme.SurfaceContainerHighest).Children(func() {
 		ui.Row(c).Gap(2).Fill().Children(func() {
 			for _, sub := range []struct{ key, label string }{
-				{"recent", fmt.Sprintf("最近使用 · %d", len(a.recent))},
-				{"favorites", fmt.Sprintf("我的收藏 · %d", len(a.favorites))},
+				{"recent", fmt.Sprintf("最近使用 · %d", len(recentList))},
+				{"favorites", fmt.Sprintf("我的收藏 · %d", len(favoriteList))},
 			} {
 				sub := sub
 				isActive := a.localSubTab == sub.key
@@ -486,18 +675,18 @@ func (a *application) drawLocalContext(c *ui.Context, scheme theme.ColorScheme) 
 		})
 	})
 
-	currentList := a.recent
+	currentList := recentList
 	emptyText := "还没有使用过壁纸"
-	listTitle := fmt.Sprintf("最近使用 · %d", len(a.recent))
+	listTitle := fmt.Sprintf("最近使用 · %d", len(recentList))
 	if a.localSubTab == "favorites" {
-		currentList = a.favorites
+		currentList = favoriteList
 		emptyText = "还没有收藏的壁纸\n在大图预览点击爱心可添加收藏"
-		listTitle = fmt.Sprintf("我的收藏 · %d", len(a.favorites))
+		listTitle = fmt.Sprintf("我的收藏 · %d", len(favoriteList))
 	}
 
 	ui.Row(c).AlignItems(ui.Center).Justify(ui.SpaceBetween).FillWidth().Children(func() {
 		ui.Text(c, listTitle).FontSize(11).Bold().TextColor(scheme.OnSurfaceVariant)
-		if a.localSubTab != "favorites" && len(a.recent) > 0 {
+		if a.localSubTab != "favorites" && len(recentList) > 0 {
 			clear := mayu.TextButton(c, "清空").OnClick(a.clearRecent)
 			clear.Height(28)
 		}
@@ -518,6 +707,7 @@ func (a *application) drawLocalContext(c *ui.Context, scheme theme.ColorScheme) 
 			item := mayu.ListItem(c, filepath.Base(path), mayu.ListItemOptions{
 				SupportingText: spec,
 				OnClick:        func() { a.loadWallpaper(path) },
+				Leading:        func() { a.drawLibraryThumbnail(c, scheme, path) },
 				Trailing: func() {
 					if isSelected {
 						ui.Box(c).Size(22, 22).Radius(11).Background(scheme.PrimaryContainer).Center().Children(func() {
@@ -531,26 +721,36 @@ func (a *application) drawLocalContext(c *ui.Context, scheme theme.ColorScheme) 
 	})
 }
 
-// drawOnlineContext hosts the online category list.
+// drawOnlineContext hosts the data source picker and the online category list.
 func (a *application) drawOnlineContext(c *ui.Context, scheme theme.ColorScheme) {
+	a.drawSourceSelector(c, scheme)
+
 	ui.Row(c).AlignItems(ui.Center).Justify(ui.SpaceBetween).FillWidth().Children(func() {
-		ui.Text(c, "壁纸分类").FontSize(13).Bold().TextColor(scheme.OnSurface)
-		refresh := mayu.TextButton(c, "刷新").OnClick(a.loadOnlineCategories)
-		refresh.Height(28)
+		ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() {
+			ui.Text(c, "壁纸分类").FontSize(13).Bold().TextColor(scheme.OnSurface)
+			if a.categoriesLoading() {
+				a.loadingRow(c, scheme, "同步中")
+			}
+		})
+		if !a.categoriesLoading() {
+			refresh := mayu.TextButton(c, "刷新").OnClick(a.loadOnlineCategories)
+			refresh.Height(28)
+		}
 	})
 
-	ui.Scroll(c).Grow(1).Gap(6).Children(func() {
-		if len(a.categories) == 0 {
-			msg := "暂无分类数据"
+	ui.Scroll(c).Grow(1).Gap(4).Children(func() {
+		visible := a.visibleCategories()
+		if len(visible) == 0 {
 			if a.loadingOnline {
-				msg = "正在加载分类…"
+				a.loadingRow(c, scheme, "正在加载分类…")
+			} else {
+				ui.Text(c, "暂无分类数据").FontSize(12).TextColor(scheme.OnSurfaceVariant)
 			}
-			ui.Text(c, msg).FontSize(12).TextColor(scheme.OnSurfaceVariant)
 		}
-		for _, cat := range a.categories {
+		for _, cat := range visible {
 			cat := cat
 			isSelected := a.selectedCategory.ID == cat.ID && a.selectedCategory.Source == cat.Source
-			btn := ui.ButtonBase(c.Key("cat-"+cat.Source+"-"+cat.ID)).FillWidth().Height(40).Radius(12).Padding(0, 10).AlignItems(ui.Center)
+			btn := ui.ButtonBase(c.Key("cat-"+cat.Source+"-"+cat.ID)).FillWidth().Height(34).Radius(10).Padding(0, 8).AlignItems(ui.Center)
 			if isSelected {
 				btn.Background(scheme.SecondaryContainer)
 			}
@@ -559,11 +759,11 @@ func (a *application) drawOnlineContext(c *ui.Context, scheme theme.ColorScheme)
 				if isSelected {
 					col = scheme.OnSecondaryContainer
 				}
-				ui.Row(c).AlignItems(ui.Center).Gap(10).Fill().Children(func() {
-					ui.Icon(c, icons.ForCategory(cat.Name)).Size(16, 16).TextColor(col)
-					ui.Text(c, cat.Name).FontSize(12).Bold().TextColor(col).SingleLine()
+				ui.Row(c).AlignItems(ui.Center).Gap(8).Fill().Children(func() {
+					ui.Icon(c, icons.ForCategory(cat.Name)).Size(14, 14).TextColor(col)
+					ui.Text(c, cat.Name).FontSize(11).Bold().TextColor(col).SingleLine()
 					ui.Spacer(c)
-					ui.Text(c, categoryBadge(cat)).FontSize(10).TextColor(col)
+					ui.Text(c, categoryBadge(cat)).FontSize(9).TextColor(col)
 				})
 			})
 			if btn.Clicked() {
@@ -573,6 +773,97 @@ func (a *application) drawOnlineContext(c *ui.Context, scheme theme.ColorScheme)
 				a.loadOnlineWallpapers(cat, 1)
 			}
 		}
+	})
+}
+
+// visibleCategories applies the active data source filter to the aggregated
+// category list. An empty source selection means "all sources".
+func (a *application) visibleCategories() []online.Category {
+	if a.activeSource == "" {
+		return a.categories
+	}
+	var result []online.Category
+	for _, cat := range a.categories {
+		if cat.Source == a.activeSource {
+			result = append(result, cat)
+		}
+	}
+	return result
+}
+
+// sourceOptions lists the sources that are currently registered with the
+// online service, including plugin-backed ones.
+func (a *application) sourceOptions() []string {
+	options := []string{""}
+	if a.onlineSvc == nil || a.onlineSvc.Registry == nil {
+		return options
+	}
+	for _, provider := range a.onlineSvc.Registry.Sources() {
+		options = append(options, provider.Name())
+	}
+	return options
+}
+
+func (a *application) sourceDisplayName(id string) string {
+	switch id {
+	case "":
+		return "全部数据源"
+	case "bing":
+		return "必应官方"
+	case "360":
+		return "360 壁纸"
+	}
+	if record := a.pluginRecords[id]; record != nil && record.Manifest.Name != "" {
+		return record.Manifest.Name
+	}
+	return id
+}
+
+func (a *application) switchSource(id string) {
+	a.sourceMenuOpen = false
+	if id == a.activeSource {
+		return
+	}
+	a.activeSource = id
+	for _, cat := range a.visibleCategories() {
+		a.selectedCategory = cat
+		a.onlinePage = 1
+		a.onlineView = "grid"
+		a.loadOnlineWallpapers(cat, 1)
+		return
+	}
+	a.selectedCategory = online.Category{}
+	a.wallpapers = nil
+	a.onlineView = "grid"
+}
+
+// drawSourceSelector is the entry point for choosing which wallpaper plugin
+// currently supplies the gallery. It is intentionally placed above the
+// category list so the relationship between source and categories is clear.
+func (a *application) drawSourceSelector(c *ui.Context, scheme theme.ColorScheme) {
+	ui.Column(c).Gap(4).FillWidth().Children(func() {
+		ui.Text(c, "当前数据源").FontSize(10).Bold().TextColor(scheme.OnSurfaceVariant)
+		trigger := ui.ButtonBase(c.Key("source-menu")).Height(32).Padding(0, 8).Radius(10).
+			Background(scheme.SurfaceContainerHigh).Border(1, scheme.OutlineVariant).
+			AlignItems(ui.Center).Label("切换数据源：" + a.sourceDisplayName(a.activeSource))
+		trigger.Children(func() {
+			ui.Row(c).AlignItems(ui.Center).Gap(6).Fill().Children(func() {
+				ui.Icon(c, icons.Globe).Size(14, 14).TextColor(scheme.OnSurfaceVariant)
+				ui.Text(c, a.sourceDisplayName(a.activeSource)).FontSize(11).Bold().TextColor(scheme.OnSurface).Grow(1).SingleLine()
+				ui.Icon(c, symbols.ExpandMore).Size(13, 13).TextColor(scheme.OnSurfaceVariant)
+			})
+		})
+		if trigger.Clicked() {
+			a.sourceMenuOpen = !a.sourceMenuOpen
+		}
+		mayu.Menu(c, trigger, &a.sourceMenuOpen, func(m *mayu.MenuPanel) {
+			for _, id := range a.sourceOptions() {
+				id := id
+				m.Item(a.sourceDisplayName(id), components.MenuItemOptions{
+					OnClick: func() { a.switchSource(id) },
+				})
+			}
+		})
 	})
 }
 
@@ -633,11 +924,12 @@ func (a *application) drawOnlineMain(c *ui.Context, t *ui.Theme) {
 				}
 				ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
 					if a.onlineView == "preview" {
-						backBtn := ui.ButtonBase(c.Key("back-to-grid")).Padding(3, 8).Radius(6).Background(scheme.SurfaceContainerHighest)
+						backBtn := ui.ButtonBase(c.Key("back-to-grid")).Padding(3, 8).Radius(6).
+							Background(scheme.SurfaceContainerHighest).Label("返回列表")
 						backBtn.Children(func() {
-							ui.Row(c).AlignItems(ui.Center).Gap(4).Children(func() {
+							ui.Row(c).AlignItems(ui.Center).Gap(3).Children(func() {
 								ui.Icon(c, icons.ChevronLeft).Size(12, 12).TextColor(scheme.OnSurfaceVariant)
-								ui.Text(c, "◀ 返回列表").FontSize(11).TextColor(scheme.OnSurfaceVariant)
+								ui.Text(c, "返回").FontSize(11).TextColor(scheme.OnSurfaceVariant)
 							})
 						})
 						if backBtn.Clicked() {
@@ -650,15 +942,12 @@ func (a *application) drawOnlineMain(c *ui.Context, t *ui.Theme) {
 			})
 
 			ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
-				// M3 search bar and select, themed by the active Material You scheme.
-				mayu.SearchBar(c, &a.searchKeyword, "搜索壁纸关键词…").Width(200)
-				mayu.Select(c, &a.filterOption, "", []components.SelectOption[string]{
-					{Value: "精选推荐", Label: "精选推荐"},
-					{Value: "最新壁纸", Label: "最新壁纸"},
-					{Value: "最高人气", Label: "最高人气"},
-				}).Width(150)
-
-				if a.onlineView == "preview" {
+				// Search and sort only make sense for the grid. Hiding them in
+				// the immersive preview leaves room for the fit selector.
+				if a.onlineView == "grid" {
+					a.drawCompactSearch(c, scheme).Width(210)
+					a.drawCompactFilterMenu(c, scheme).Width(118)
+				} else {
 					a.drawFitSelector(c, t)
 				}
 			})
@@ -680,17 +969,28 @@ func (a *application) drawOnlineMain(c *ui.Context, t *ui.Theme) {
 func (a *application) drawWallpaperGrid(c *ui.Context, t *ui.Theme) {
 	scheme := m3Scheme(c)
 	ui.Box(c).Grow(1).FillWidth().MinHeight(260).Radius(16).Clip().Background(scheme.SurfaceContainerLow).Border(1, scheme.OutlineVariant).Padding(12, 12).Children(func() {
-		if a.loadingOnline && len(a.wallpapers) == 0 {
-			ui.Column(c).Fill().Center().Gap(8).Children(func() {
-				ui.Text(c, "正在加载在线壁纸…").FontSize(16).Bold().TextColor(t.TextMuted)
-				ui.Text(c, "正在连接国内图库源，请稍候").FontSize(12).TextColor(t.TextMuted)
+		searchLoading := a.searchInProgress()
+		if a.loadingOnline || searchLoading {
+			message, detail := "正在加载在线壁纸…", "正在连接壁纸数据源，请稍候"
+			if searchLoading {
+				message, detail = "正在搜索壁纸…", "正在匹配 "+a.searchKeyword+" 的结果"
+			}
+			ui.Column(c).Fill().Center().Gap(10).Children(func() {
+				mayu.CircularProgress(c, -1, components.CircularProgressOptions{Size: 36, Width: 4})
+				ui.Text(c, message).FontSize(16).Bold().TextColor(scheme.OnSurface)
+				ui.Text(c, detail).FontSize(12).TextColor(scheme.OnSurfaceVariant)
 			})
 			return
 		}
 
-		// 关键词过滤
+		// 关键词过滤：优先使用异步筛选结果，保证搜索过程有加载反馈。
+		a.mu.RLock()
+		searchResults := append([]online.WallpaperItem(nil), a.searchResults...)
+		a.mu.RUnlock()
 		displayed := a.wallpapers
-		if kw := strings.TrimSpace(a.searchKeyword); kw != "" {
+		if kw := strings.TrimSpace(a.searchKeyword); kw != "" && searchResults != nil {
+			displayed = searchResults
+		} else if kw := strings.TrimSpace(a.searchKeyword); kw != "" {
 			var filtered []online.WallpaperItem
 			for _, item := range a.wallpapers {
 				if strings.Contains(strings.ToLower(item.Title), strings.ToLower(kw)) {
@@ -753,8 +1053,8 @@ func (a *application) drawWallpaperGrid(c *ui.Context, t *ui.Theme) {
 								ui.Image(c, bmp).Fill().Radius(6).Fit(ui.Cover)
 							} else {
 								a.requestThumbnail(item)
-								ui.Box(c).Fill().Background(scheme.OutlineVariant).Center().Children(func() {
-									ui.Text(c, "加载中…").FontSize(11).TextColor(scheme.OnSurfaceVariant)
+								ui.Box(c).Fill().Background(scheme.SurfaceContainerHigh).Center().Children(func() {
+									mayu.CircularProgress(c, -1, components.CircularProgressOptions{Size: 20, Width: 3})
 								})
 							}
 
@@ -773,13 +1073,13 @@ func (a *application) drawWallpaperGrid(c *ui.Context, t *ui.Theme) {
 							ui.Text(c, item.Title).FontSize(12).Bold().TextColor(scheme.OnSurface).Grow(1).SingleLine()
 						})
 
-						// 卡片操作按钮行：↗ 预览 / ✓ 应用 (等宽双按钮，对齐原型)
+						// 卡片操作按钮行：向量图标 + 纯文字，避免图标与字形重复。
 						ui.Row(c).Gap(6).FillWidth().Children(func() {
 							prevBtn := ui.ButtonBase(c.Key("btn-prev-"+item.ID)).Grow(1).Height(28).Radius(6).Background(scheme.SurfaceContainerHighest).Border(1, scheme.Outline)
 							prevBtn.Children(func() {
 								ui.Row(c).Center().Gap(4).Children(func() {
 									ui.Icon(c, icons.Eye).Size(12, 12).TextColor(scheme.OnSurfaceVariant)
-									ui.Text(c, "↗ 预览").FontSize(11).TextColor(scheme.OnSurfaceVariant)
+									ui.Text(c, "预览").FontSize(11).TextColor(scheme.OnSurfaceVariant)
 								})
 							})
 							if prevBtn.Clicked() {
@@ -787,7 +1087,7 @@ func (a *application) drawWallpaperGrid(c *ui.Context, t *ui.Theme) {
 								a.previewOnlineWallpaper(item)
 							}
 
-							btnLabel := "✓ 应用"
+							btnLabel := "应用"
 							if a.busy && isSelected {
 								btnLabel = "正在应用…"
 							}
@@ -826,10 +1126,46 @@ func (a *application) drawLargePreviewBox(c *ui.Context, t *ui.Theme) {
 	stageBg := ui.Hex("#1C1B1F")
 	stageFg := ui.Hex("#E6E1E5")
 	ui.Box(c).Grow(1).FillWidth().MinHeight(320).Radius(20).Clip().Background(stageBg).Children(func() {
+		if a.hdLoading || a.localLoading {
+			message := "正在读取本地图片…"
+			if a.hdLoading {
+				message = "正在加载高清原图…"
+			}
+			ui.Column(c).Fill().Center().Gap(12).Children(func() {
+				mayu.CircularProgress(c, -1, components.CircularProgressOptions{
+					Size: 40, Width: 4, IndicatorColor: scheme.Primary,
+				})
+				ui.Text(c, message).FontSize(14).Bold().TextColor(stageFg)
+				if a.hdLoading && a.selectedOnline != nil {
+					ui.Text(c, a.selectedOnline.Title).FontSize(11).TextColor(stageFg.Alpha(0.7))
+				}
+			})
+			return
+		}
 		if a.preview == nil {
+			message := "还没有选择壁纸"
+			detail := "支持 JPG、PNG、WebP 和 BMP"
+			if a.hdError != "" {
+				message = "高清图片加载失败"
+				detail = a.hdError
+			} else if a.localLoadError != "" {
+				message = "图片打开失败"
+				detail = a.localLoadError
+			}
 			ui.Column(c).Fill().Center().Gap(8).Children(func() {
-				ui.Text(c, "还没有选择壁纸").FontSize(18).Bold().TextColor(stageFg)
-				ui.Text(c, "支持 JPG、PNG、WebP 和 BMP").FontSize(12).TextColor(stageFg.Alpha(0.7))
+				ui.Text(c, message).FontSize(18).Bold().TextColor(stageFg)
+				ui.Text(c, detail).FontSize(12).TextColor(stageFg.Alpha(0.7))
+				if a.hdError != "" && a.selectedOnline != nil {
+					item := *a.selectedOnline
+					retry := ui.ButtonBase(c.Key("retry-hd-preview")).Padding(6, 14).Radius(16).
+						Background(scheme.Primary).Label("重试加载高清图")
+					retry.Children(func() {
+						ui.Text(c, "重试加载").FontSize(11).Bold().TextColor(scheme.OnPrimary)
+					})
+					if retry.Clicked() {
+						a.previewOnlineWallpaper(item)
+					}
+				}
 			})
 			return
 		}
@@ -912,46 +1248,168 @@ func (a *application) drawLargePreviewBox(c *ui.Context, t *ui.Theme) {
 	})
 }
 
-// drawFitSelector draws the wallpaper fit mode as a single M3 segmented
-// button: one outlined track with three connected segments. The glyph-prefixed
-// strings live in Label() (accessibility + test contract) while the visible
-// face is clean text, so the control no longer looks like three loose pills.
-func (a *application) drawFitSelector(c *ui.Context, t *ui.Theme) {
-	scheme := m3Scheme(c)
-	options := []struct {
-		val   string
-		aria  string
-		label string
-	}{
-		{"覆盖", "⬒ 覆盖", "覆盖"},
-		{"适应", "⬓ 适应", "适应"},
-		{"拉伸", "⬖ 拉伸", "拉伸"},
+var fitNames = []string{"覆盖", "适应", "拉伸"}
+
+func fitIndex(fit string) int {
+	for i, name := range fitNames {
+		if fit == name {
+			return i
+		}
 	}
-	ui.Box(c).Height(36).Padding(3).Radius(18).Background(scheme.SurfaceContainerHighest).Border(1, scheme.OutlineVariant).Clip().Children(func() {
-		ui.Row(c).FillHeight().Children(func() {
-			for i, opt := range options {
-				opt := opt
-				isSelected := a.fit == opt.val
-				segment := ui.ButtonBase(c.Key("seg-" + opt.val)).Width(58).FillHeight().Label(opt.aria)
-				if i > 0 {
-					segment.BorderWidth(0, 0, 0, 1).BorderColor(scheme.OutlineVariant)
-				}
-				if isSelected {
-					segment.Background(scheme.SecondaryContainer).Radius(15)
-				}
-				segment.Center().Children(func() {
-					col := scheme.OnSurfaceVariant
-					if isSelected {
-						col = scheme.OnSecondaryContainer
-					}
-					ui.Text(c, opt.label).FontSize(12).Bold().TextColor(col).SingleLine()
-				})
-				if segment.Clicked() {
-					a.fit = opt.val
-				}
+	return 0
+}
+
+// drawFitSelector uses the Material 3 segmented button component instead of a
+// hand-rolled pill row. The check mark on the selected segment is part of the
+// M3 component language, so the three modes now read as one coherent control
+// next to the compact page toolbar.
+func (a *application) drawFitSelector(c *ui.Context, t *ui.Theme) {
+	selected := fitIndex(a.fit)
+	options := make([]mayu.SegmentOption, 0, len(fitNames))
+	for _, name := range fitNames {
+		options = append(options, mayu.SegmentOption{Label: name})
+	}
+	mayu.SegmentedButton(c, &selected, options).Width(228)
+	if selected != fitIndex(a.fit) {
+		a.fit = fitNames[selected]
+		a.fitIndex = selected
+	}
+}
+
+// searchInProgress and categoriesLoading are the locked read paths used by
+// the renderer. The writers run inside a.update (which holds a.mu), and
+// scheduleSearch takes the same lock, so UI frames never race with them.
+func (a *application) searchInProgress() bool {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.searchLoading
+}
+
+func (a *application) categoriesLoading() bool {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.loadingCategories
+}
+
+// scheduleSearch starts a debounced background filter of the current page.
+// Called from the render loop, so it must not queue a window update itself;
+// only the finishing goroutine publishes the result through a.update.
+func (a *application) scheduleSearch() {
+	keyword := a.searchKeyword
+	seq := a.searchSeq.Add(1)
+	a.mu.Lock()
+	a.lastSearchKeyword = keyword
+	a.searchLoading = keyword != ""
+	if !a.searchLoading {
+		a.searchResults = nil
+	}
+	loading := a.searchLoading
+	a.mu.Unlock()
+	if !loading {
+		return
+	}
+	go func() {
+		// Debounce typing without inventing a network round trip: this is a
+		// real background filter over the fetched page.
+		time.Sleep(220 * time.Millisecond)
+		a.mu.RLock()
+		items := append([]online.WallpaperItem(nil), a.wallpapers...)
+		a.mu.RUnlock()
+		needle := strings.ToLower(strings.TrimSpace(keyword))
+		var filtered []online.WallpaperItem
+		for _, item := range items {
+			if strings.Contains(strings.ToLower(item.Title), needle) {
+				filtered = append(filtered, item)
 			}
+		}
+		a.update(func() {
+			if seq != a.searchSeq.Load() {
+				return
+			}
+			a.searchResults = filtered
+			a.searchLoading = false
+		})
+	}()
+}
+
+// drawCompactSearch is a 36dp search field that matches the density of the
+// rest of the compact toolbar. Mayu's stock SearchBar is 56dp, which towered
+// over the adjacent controls in the 40dp title row.
+func (a *application) drawCompactSearch(c *ui.Context, scheme theme.ColorScheme) ui.Element {
+	row := ui.Row(c).Height(36).Radius(18).Padding(0, 12).Gap(8).
+		AlignItems(ui.Center).Background(scheme.SurfaceContainerHigh).
+		Border(1, scheme.OutlineVariant).Label("搜索壁纸关键词")
+	row.Children(func() {
+		ui.Icon(c, symbols.Search).Size(15, 15).TextColor(scheme.OnSurfaceVariant)
+		input := ui.TextInputBase(c, &a.searchKeyword).Grow(1).
+			Placeholder("搜索壁纸关键词…").TextColor(scheme.OnSurface)
+		input.Label("搜索壁纸关键词")
+		if a.searchKeyword != "" {
+			clear := ui.ButtonBase(c.Key("search-clear")).Size(22, 22).Radius(11).Center().Label("清空搜索词")
+			if clear.Clicked() {
+				a.searchKeyword = ""
+			}
+			clear.Children(func() {
+				ui.Icon(c, symbols.Close).Size(13, 13).TextColor(scheme.OnSurfaceVariant)
+			})
+		}
+	})
+	a.mu.RLock()
+	lastKeyword := a.lastSearchKeyword
+	a.mu.RUnlock()
+	if a.searchKeyword != lastKeyword {
+		a.scheduleSearch()
+	}
+	return row
+}
+
+// statusIndicator replaces the old static dot with a live progress ring while
+// background work is running, and keeps a quiet colored dot at rest.
+func (a *application) statusIndicator(c *ui.Context, scheme theme.ColorScheme, working bool) {
+	if working {
+		mayu.CircularProgress(c, -1, components.CircularProgressOptions{Size: 14, Width: 2, IndicatorColor: scheme.Primary})
+		return
+	}
+	dotColor := scheme.Tertiary
+	if a.error {
+		dotColor = scheme.Error
+	}
+	ui.Box(c).Width(8).Height(8).Radius(4).Background(dotColor)
+}
+
+// loadingRow is the shared M3 activity indicator for asynchronous operations.
+// It spins only while a frame is drawn, so a background task never looks stuck.
+func (a *application) loadingRow(c *ui.Context, scheme theme.ColorScheme, message string) ui.Element {
+	return ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
+		mayu.CircularProgress(c, -1, components.CircularProgressOptions{
+			Size: 16, Width: 2, IndicatorColor: scheme.Primary,
+		})
+		ui.Text(c, message).FontSize(11).TextColor(scheme.OnSurfaceVariant).SingleLine()
+	})
+}
+
+// drawCompactFilterMenu keeps the three sort choices in one small dropdown
+// instead of a full-height text field. The trigger and menu share Mayu colors.
+func (a *application) drawCompactFilterMenu(c *ui.Context, scheme theme.ColorScheme) ui.Element {
+	trigger := ui.ButtonBase(c.Key("filter-menu")).Height(36).Padding(0, 10).Radius(18).
+		Background(scheme.SurfaceContainerHigh).Border(1, scheme.OutlineVariant).
+		AlignItems(ui.Center).Label("筛选方式：" + a.filterOption)
+	trigger.Children(func() {
+		ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() {
+			ui.Text(c, a.filterOption).FontSize(11).Bold().TextColor(scheme.OnSurface).SingleLine()
+			ui.Icon(c, symbols.ExpandMore).Size(14, 14).TextColor(scheme.OnSurfaceVariant)
 		})
 	})
+	if trigger.Clicked() {
+		a.filterMenuOpen = !a.filterMenuOpen
+	}
+	mayu.Menu(c, trigger, &a.filterMenuOpen, func(m *mayu.MenuPanel) {
+		for _, option := range []string{"精选推荐", "最新壁纸", "最高人气"} {
+			option := option
+			m.Item(option, components.MenuItemOptions{OnClick: func() { a.filterOption = option }})
+		}
+	})
+	return trigger
 }
 
 // drawActionButton renders a labeled action button: icon and caption on the
@@ -985,18 +1443,12 @@ func (a *application) drawLocalBottomBar(c *ui.Context, t *ui.Theme) {
 	scheme := m3Scheme(c)
 	ui.Column(c).Gap(10).FillWidth().Children(func() {
 		// Status line on its own row so it never competes with the actions.
-		dotColor := scheme.Tertiary
-		if a.error {
-			dotColor = scheme.Error
-		} else if a.busy {
-			dotColor = scheme.Primary
-		}
 		statusMsg := "已成功应用到桌面并同步"
 		if a.status != "" {
 			statusMsg = a.status
 		}
 		ui.Row(c).AlignItems(ui.Center).Gap(7).FillWidth().Children(func() {
-			ui.Box(c).Width(8).Height(8).Radius(4).Background(dotColor)
+			a.statusIndicator(c, scheme, a.busy || a.localLoading)
 			ui.Text(c, statusMsg).FontSize(12).TextColor(scheme.OnSurfaceVariant).SingleLine()
 		})
 
@@ -1068,15 +1520,8 @@ func (a *application) drawOnlineBottomBar(c *ui.Context, t *ui.Theme) {
 			statusMsg = a.status
 		}
 
-		dotColor := scheme.Tertiary
-		if a.error {
-			dotColor = scheme.Error
-		} else if a.busy || a.loadingOnline {
-			dotColor = scheme.Primary
-		}
-
 		ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() {
-			ui.Box(c).Width(7).Height(7).Radius(4).Background(dotColor)
+			a.statusIndicator(c, scheme, a.busy || a.loadingOnline || a.categoriesLoading() || a.searchInProgress() || a.hdLoading)
 			ui.Text(c, statusMsg).FontSize(12).TextColor(scheme.OnSurfaceVariant).SingleLine()
 		})
 
@@ -1110,7 +1555,7 @@ func (a *application) drawOnlineBottomBar(c *ui.Context, t *ui.Theme) {
 			prevBtn.Children(func() {
 				ui.Row(c).AlignItems(ui.Center).Gap(4).Children(func() {
 					ui.Icon(c, icons.ChevronLeft).Size(11, 11).TextColor(scheme.OnSurfaceVariant)
-					ui.Text(c, "◀ 上一页").FontSize(11).TextColor(scheme.OnSurfaceVariant)
+					ui.Text(c, "上一页").FontSize(11).TextColor(scheme.OnSurfaceVariant)
 				})
 			})
 			if prevBtn.Clicked() && currentPage > 1 {
@@ -1129,7 +1574,7 @@ func (a *application) drawOnlineBottomBar(c *ui.Context, t *ui.Theme) {
 			nextBtn := ui.ButtonBase(c.Key("page-next")).Height(30).Padding(0, 10).Radius(6).Background(scheme.Surface).Border(1, scheme.OutlineVariant).Disabled(!a.onlineMore || a.loadingOnline)
 			nextBtn.Children(func() {
 				ui.Row(c).AlignItems(ui.Center).Gap(4).Children(func() {
-					ui.Text(c, "下一页 ▶").FontSize(11).TextColor(scheme.OnSurface)
+					ui.Text(c, "下一页").FontSize(11).TextColor(scheme.OnSurface)
 					ui.Icon(c, icons.ChevronRight).Size(11, 11).TextColor(scheme.OnSurface)
 				})
 			})
@@ -1257,6 +1702,8 @@ func (a *application) loadWallpaper(path string) {
 	seq := a.loadSeq.Add(1)
 	a.update(func() {
 		a.busy = true
+		a.localLoading = true
+		a.localLoadError = ""
 		a.setStatus("正在读取图片…", false)
 	})
 	go func() {
@@ -1275,6 +1722,7 @@ func (a *application) loadWallpaper(path string) {
 					a.recentBitmaps[path] = preview
 					a.thumbMu.Unlock()
 					a.busy = false
+					a.localLoading = false
 					a.setStatus("准备应用到桌面", false)
 				})
 				return
@@ -1285,11 +1733,15 @@ func (a *application) loadWallpaper(path string) {
 				return
 			}
 			a.busy = false
+			a.localLoading = false
+			message := "无法预览这张图片"
 			if readErr != nil {
-				a.setStatus("读取图片失败: "+readErr.Error(), true)
+				message = "读取图片失败: " + readErr.Error()
 			} else if err != nil {
-				a.setStatus("无法预览这张图片: "+err.Error(), true)
+				message = "无法预览这张图片: " + err.Error()
 			}
+			a.localLoadError = message
+			a.setStatus(message, true)
 		})
 	}()
 }
@@ -1397,7 +1849,7 @@ func (a *application) applyWallpaper() {
 			}
 			if a.store != nil {
 				if state, saveErr := a.store.Add(path); saveErr == nil {
-					a.recent = state.Recent
+					a.recent = usableWallpaperPaths(state.Recent)
 				} else {
 					a.setStatus("壁纸已应用，但保存历史记录失败: "+saveErr.Error(), true)
 				}
@@ -1413,6 +1865,7 @@ func (a *application) loadOnlineCategories() {
 	}
 	a.update(func() {
 		a.loadingOnline = true
+		a.loadingCategories = true
 		a.status = "正在加载壁纸分类…"
 		a.error = false
 	})
@@ -1420,6 +1873,7 @@ func (a *application) loadOnlineCategories() {
 		cats, err := a.onlineSvc.GetCategories(context.Background())
 		a.update(func() {
 			a.loadingOnline = false
+			a.loadingCategories = false
 			if err != nil {
 				a.status = "加载分类失败: " + err.Error()
 				a.error = true
@@ -1445,10 +1899,15 @@ func (a *application) loadOnlineWallpapers(cat online.Category, page int) {
 	if a.onlineSvc == nil {
 		return
 	}
+	// A fresh fetch invalidates any in-flight keyword filter.
+	a.searchSeq.Add(1)
 	a.update(func() {
 		a.loadingOnline = true
 		a.onlinePage = page
 		a.selectedCategory = cat
+		a.searchLoading = false
+		a.searchResults = nil
+		a.lastSearchKeyword = a.searchKeyword
 		a.status = "正在拉取 " + cat.Name + " 壁纸…"
 		a.error = false
 	})
@@ -1517,7 +1976,7 @@ func (a *application) applyOnlineWallpaper(item online.WallpaperItem) {
 			}
 			if a.store != nil {
 				if state, saveErr := a.store.Add(localPath); saveErr == nil {
-					a.recent = state.Recent
+					a.recent = usableWallpaperPaths(state.Recent)
 				}
 			}
 
@@ -1546,38 +2005,54 @@ func (a *application) applyOnlineWallpaper(item online.WallpaperItem) {
 	}()
 }
 
-// previewOnlineWallpaper 加载高清原图并在大图视图中预览
+// previewOnlineWallpaper enters the immersive preview immediately, then
+// fetches the full-resolution image in the background. The preview stage
+// shows its own spinner so the user never waits on a hidden grid action.
 func (a *application) previewOnlineWallpaper(item online.WallpaperItem) {
 	if a.onlineSvc == nil {
 		return
 	}
 	a.update(func() {
+		a.selectedOnline = &item
+		a.onlineView = "preview"
+		a.preview = nil
+		a.selected = ""
 		a.busy = true
+		a.hdLoading = true
+		a.hdError = ""
 		a.status = "正在加载高清大图预览…"
 		a.error = false
 	})
 	go func() {
 		localPath, err := a.onlineSvc.DownloadWallpaper(context.Background(), item)
-		if err != nil {
-			a.update(func() {
-				a.busy = false
-				a.status = "加载大图失败: " + err.Error()
-				a.error = true
-			})
-			return
+		if err == nil {
+			var data []byte
+			data, err = os.ReadFile(localPath)
+			if err == nil {
+				var bmp *ui.Bitmap
+				bmp, err = decodeWallpaper(data)
+				if err == nil && bmp != nil {
+					a.update(func() {
+						a.busy = false
+						a.hdLoading = false
+						a.selected = localPath
+						a.preview = bmp
+						a.status = "已加载高清预览: " + item.Title
+					})
+					return
+				}
+				if err == nil {
+					err = fmt.Errorf("无法解码图片")
+				}
+			}
 		}
-		var bmp *ui.Bitmap
-		if data, readErr := os.ReadFile(localPath); readErr == nil {
-			bmp, _ = decodeWallpaper(data)
-		}
+		message := "加载大图失败: " + err.Error()
 		a.update(func() {
 			a.busy = false
-			a.selected = localPath
-			if bmp != nil {
-				a.preview = bmp
-			}
-			a.onlineView = "preview"
-			a.status = "已加载高清预览: " + item.Title
+			a.hdLoading = false
+			a.hdError = message
+			a.status = message
+			a.error = true
 		})
 	}()
 }
@@ -1617,6 +2092,84 @@ func (a *application) requestThumbnail(item online.WallpaperItem) {
 	}(item)
 }
 
+const libraryThumbSize = 128
+
+// drawLibraryThumbnail renders a small preview for the local library lists,
+// starting a one-shot background decode on first sight of an uncached path.
+func (a *application) drawLibraryThumbnail(c *ui.Context, scheme theme.ColorScheme, path string) {
+	a.libraryMu.Lock()
+	bmp, loading := a.libraryBitmaps[path], a.libraryLoading[path]
+	a.libraryMu.Unlock()
+
+	if bmp != nil {
+		ui.Image(c, bmp).Size(44, 44).Radius(8).Fit(ui.Cover).Label("壁纸缩略图")
+		return
+	}
+	if loading {
+		ui.Box(c).Size(44, 44).Radius(8).Background(scheme.SurfaceContainerHighest).Center().Children(func() {
+			mayu.CircularProgress(c, -1, components.CircularProgressOptions{Size: 16, Width: 2, IndicatorColor: scheme.Primary})
+		})
+		return
+	}
+	a.requestLibraryThumbnail(path)
+	ui.Box(c).Size(44, 44).Radius(8).Background(scheme.SurfaceContainerHighest).Center().Children(func() {
+		ui.Icon(c, icons.Image).Size(18, 18).TextColor(scheme.OnSurfaceVariant)
+	})
+}
+
+func (a *application) requestLibraryThumbnail(path string) {
+	a.libraryMu.Lock()
+	if a.libraryBitmaps[path] != nil || a.libraryLoading[path] || a.libraryFailed[path] {
+		a.libraryMu.Unlock()
+		return
+	}
+	a.libraryLoading[path] = true
+	a.libraryMu.Unlock()
+
+	go func() {
+		bmp, err := decodeLibraryThumbnail(path)
+		a.libraryMu.Lock()
+		delete(a.libraryLoading, path)
+		if err == nil {
+			a.libraryBitmaps[path] = bmp
+		} else {
+			a.libraryFailed[path] = true
+		}
+		a.libraryMu.Unlock()
+	}()
+}
+
+// decodeLibraryThumbnail decodes at most a 128px version of the image, keeping
+// the recent/favorites rows cheap even for large 4K wallpapers.
+func decodeLibraryThumbnail(path string) (*ui.Bitmap, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > maxWallpaperFileBytes {
+		return nil, fmt.Errorf("图片文件过大")
+	}
+	config, _, err := image.DecodeConfig(bytes.NewReader(data))
+	if err != nil {
+		return nil, err
+	}
+	if config.Width <= 0 || config.Height <= 0 || int64(config.Width)*int64(config.Height) > maxWallpaperPixels {
+		return nil, fmt.Errorf("图片尺寸无效或过大")
+	}
+	img, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		return nil, err
+	}
+	w, h := img.Bounds().Dx(), img.Bounds().Dy()
+	scale := float64(libraryThumbSize) / float64(max(w, h))
+	if scale > 1 {
+		scale = 1
+	}
+	dst := image.NewRGBA(image.Rect(0, 0, max(1, int(float64(w)*scale)), max(1, int(float64(h)*scale))))
+	draw.CatmullRom.Scale(dst, dst.Bounds(), img, img.Bounds(), draw.Over, nil)
+	return ui.NewBitmap(dst), nil
+}
+
 func (a *application) setStatus(message string, isError bool) {
 	a.status, a.error = message, isError
 }
@@ -1640,11 +2193,33 @@ func (a *application) relaunchAfterUpdate() {
 
 func (a *application) checkForUpdates() {
 	a.update(func() {
-		a.setStatus("正在检查应用更新…", false)
+		a.updateOpen = true
+		a.updateUI = updateUIState{phase: "checking", message: "正在检查应用更新…", progress: -1}
 	})
 	if a.checkUpdate != nil {
 		a.checkUpdate()
 	}
+}
+
+func (a *application) startUpdateInstall() {
+	a.mu.Lock()
+	res := a.updateUI.result
+	a.mu.Unlock()
+	if res != nil {
+		go a.applyUpdate(res)
+	}
+}
+
+func (a *application) openReleasePage() {
+	a.mu.Lock()
+	version := a.updateUI.version
+	svc := a.updaterSvc
+	a.mu.Unlock()
+	if svc == nil {
+		return
+	}
+	url := fmt.Sprintf("https://github.com/%s/releases/tag/v%s", svc.Repo(), strings.TrimPrefix(version, "v"))
+	_ = svc.OpenBrowser(url)
 }
 
 func (a *application) initUpdater() {
@@ -1659,6 +2234,9 @@ func (a *application) initUpdater() {
 
 func (a *application) handleCheckForUpdates() {
 	if a.updaterSvc == nil {
+		a.update(func() {
+			a.updateUI = updateUIState{phase: "error", message: "更新服务未初始化"}
+		})
 		return
 	}
 	go func() {
@@ -1669,58 +2247,38 @@ func (a *application) handleCheckForUpdates() {
 		res, err := a.updaterSvc.CheckUpdate(ctx, AppVersion, target)
 		if err != nil {
 			a.update(func() {
-				a.setStatus("检查更新失败: "+err.Error(), true)
+				a.updateUI = updateUIState{phase: "error", message: "检查更新失败: " + err.Error()}
+				a.updateBadge = false
 			})
 			return
 		}
 
 		if !res.HasUpdate {
 			a.update(func() {
-				a.setStatus(fmt.Sprintf("BGGo 已是最新版本 (%s)", AppVersion), false)
+				a.updateUI = updateUIState{
+					phase:   "latest",
+					version: AppVersion,
+					message: fmt.Sprintf("BGGo 已是最新版本 (%s)", AppVersion),
+				}
+				a.updateBadge = false
 			})
-			if a.window != nil {
-				_, _ = mygo.Dialog.Message(mygo.MessageOptions{
-					Parent:  a.window,
-					Type:    mygo.MessageInfo,
-					Title:   "检查更新",
-					Message: "当前已是最新版本",
-					Detail:  fmt.Sprintf("BGGo %s 已是最新版本，无需更新。", AppVersion),
-					Buttons: []string{"确定"},
-				})
-			}
 			return
 		}
 
+		notes := ""
+		if res.Manifest != nil {
+			notes = res.Manifest.Notes
+		}
 		a.update(func() {
-			a.setStatus(fmt.Sprintf("发现新版本 %s！", res.LatestVersion), false)
+			a.updateUI = updateUIState{
+				phase:   "available",
+				version: res.LatestVersion,
+				message: "发现新版本 " + res.LatestVersion,
+				notes:   notes,
+				result:  res,
+			}
+			a.updateBadge = true
 		})
-
-		detail := fmt.Sprintf("BGGo 新版本 %s 已发布（当前版本 %s）。\n\n点击“立即更新”开始下载并安装。", res.LatestVersion, AppVersion)
-		if res.Manifest != nil && res.Manifest.Notes != "" {
-			detail = fmt.Sprintf("更新说明：\n%s\n\n点击“立即更新”开始下载并安装。", res.Manifest.Notes)
-		}
-
-		if a.window == nil {
-			return
-		}
-		msgRes, _ := mygo.Dialog.Message(mygo.MessageOptions{
-			Parent:        a.window,
-			Type:          mygo.MessageQuestion,
-			Title:         "发现新版本",
-			Message:       fmt.Sprintf("发现 BGGo 新版本 %s", res.LatestVersion),
-			Detail:        detail,
-			Buttons:       []string{"立即更新", "在浏览器中打开", "稍后"},
-			DefaultButton: 0,
-			CancelButton:  2,
-		})
-
-		switch msgRes.Button {
-		case 0:
-			go a.applyUpdate(res)
-		case 1:
-			releaseURL := fmt.Sprintf("https://github.com/%s/releases/tag/v%s", a.updaterSvc.Repo(), strings.TrimPrefix(res.LatestVersion, "v"))
-			_ = a.updaterSvc.OpenBrowser(releaseURL)
-		}
 	}()
 }
 
@@ -1730,7 +2288,13 @@ func (a *application) applyUpdate(res *updater.CheckResult) {
 	}
 
 	a.update(func() {
-		a.setStatus(fmt.Sprintf("正在下载 BGGo %s 更新包…", res.LatestVersion), false)
+		a.updateOpen = true
+		a.updateUI = updateUIState{
+			phase:    "downloading",
+			message:  "正在下载 BGGo " + res.LatestVersion + " 更新包…",
+			progress: -1,
+			result:   res,
+		}
 	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
@@ -1744,69 +2308,43 @@ func (a *application) applyUpdate(res *updater.CheckResult) {
 
 		err := a.updaterSvc.DownloadFile(ctx, debURL, destFile, func(downloaded, total int64) {
 			if total > 0 {
-				pct := int(downloaded * 100 / total)
+				fraction := float32(downloaded) / float32(total)
 				a.update(func() {
-					a.setStatus(fmt.Sprintf("正在下载更新安装包… %d%%", pct), false)
+					a.updateUI.progress = fraction
+					a.updateUI.message = fmt.Sprintf("正在下载更新安装包… %d%%", int(fraction*100))
 				})
 			}
 		})
 		if err != nil {
 			a.update(func() {
-				a.setStatus("下载更新包失败: "+err.Error(), true)
+				a.updateUI = updateUIState{phase: "error", message: "下载更新包失败: " + err.Error(), result: res}
 			})
 			return
 		}
 
 		a.update(func() {
-			a.setStatus("正在安装新版本…", false)
+			a.updateUI.phase = "downloading"
+			a.updateUI.progress = -1
+			a.updateUI.message = "正在安装新版本…"
 		})
 
 		err = a.updaterSvc.InstallDebPackage(destFile)
 		if err != nil {
 			pending := errors.Is(err, updater.ErrInstallPending)
-			a.update(func() {
-				if pending {
-					a.setStatus("系统安装器已打开，请完成安装后重新启动应用", false)
-				} else {
-					a.setStatus("自动安装未完成，已保存安装包", true)
-				}
-			})
-			if a.window != nil {
-				_, _ = mygo.Dialog.Message(mygo.MessageOptions{
-					Parent: a.window,
-					Type:   mygo.MessageWarning,
-					Title:  "更新安装提示",
-					Message: func() string {
-						if pending {
-							return "系统安装器已打开，但 BGGo 无法确认安装是否完成"
-						}
-						return "未能完成自动提权安装"
-					}(),
-					Detail:  fmt.Sprintf("更新包已保存至:\n%s\n\n请完成系统安装器中的操作；若安装器未成功，可在终端执行:\nsudo dpkg -i %s\n\n安装完成后请重新启动 BGGo。", destFile, destFile),
-					Buttons: []string{"确定"},
-				})
+			message := "自动安装未完成，已保存安装包"
+			notes := fmt.Sprintf("更新包已保存至:\n%s\n\n若安装器未成功，可执行:\nsudo dpkg -i %s", destFile, destFile)
+			if pending {
+				message = "系统安装器已打开，请完成安装后重新启动应用"
 			}
+			a.update(func() {
+				a.updateUI = updateUIState{phase: "installed", message: message, notes: notes, result: res}
+			})
 			return
 		}
 
 		a.update(func() {
-			a.setStatus("更新安装完成！", false)
+			a.updateUI = updateUIState{phase: "installed", message: "更新安装完成！", result: res}
 		})
-
-		if a.window != nil {
-			successRes, _ := mygo.Dialog.Message(mygo.MessageOptions{
-				Parent:        a.window,
-				Type:          mygo.MessageInfo,
-				Title:         "更新完成",
-				Message:       "BGGo 更新已安装完成",
-				Detail:        "点击确定重启应用以体验新版本。",
-				Buttons:       []string{"重启应用", "稍后重启"},
-				DefaultButton: 0,
-			})
-			if successRes.Button == 0 {
-				a.relaunchAfterUpdate()
-			}
-		}
 		return
 	}
 
@@ -1815,7 +2353,7 @@ func (a *application) applyUpdate(res *updater.CheckResult) {
 	// running installation.
 	if !mygo.Updater.Enabled() {
 		a.update(func() {
-			a.setStatus("当前安装方式不支持自动更新，请从发布页下载安装包", true)
+			a.updateUI = updateUIState{phase: "error", message: "当前安装方式不支持自动更新，请从发布页下载安装包", result: res}
 		})
 		return
 	}
@@ -1823,36 +2361,36 @@ func (a *application) applyUpdate(res *updater.CheckResult) {
 	nativeUpdate, err := mygo.Updater.Check(ctx)
 	if err != nil {
 		a.update(func() {
-			a.setStatus("检查原生更新失败: "+err.Error(), true)
+			a.updateUI = updateUIState{phase: "error", message: "检查原生更新失败: " + err.Error(), result: res}
 		})
 		return
 	}
 	if nativeUpdate == nil {
 		a.update(func() {
-			a.setStatus("当前已是最新版本", false)
+			a.updateUI = updateUIState{phase: "latest", message: "当前已是最新版本", result: res}
 		})
 		return
 	}
 
 	err = nativeUpdate.Install(ctx, func(downloaded, total int64) {
 		if total > 0 {
-			pct := int(downloaded * 100 / total)
+			fraction := float32(downloaded) / float32(total)
 			a.update(func() {
-				a.setStatus(fmt.Sprintf("正在下载更新包… %d%%", pct), false)
+				a.updateUI.progress = fraction
+				a.updateUI.message = fmt.Sprintf("正在下载更新包… %d%%", int(fraction*100))
 			})
 		}
 	})
 	if err != nil {
 		a.update(func() {
-			a.setStatus("安装更新失败: "+err.Error(), true)
+			a.updateUI = updateUIState{phase: "error", message: "安装更新失败: " + err.Error(), result: res}
 		})
 		return
 	}
 
 	a.update(func() {
-		a.setStatus("更新安装完成，正在重启应用…", false)
+		a.updateUI = updateUIState{phase: "installed", message: "更新安装完成，点击“重启应用”生效", result: res}
 	})
-	a.relaunchAfterUpdate()
 }
 
 func (a *application) runSilentUpdateCheck() {
@@ -1865,8 +2403,11 @@ func (a *application) runSilentUpdateCheck() {
 	target := fmt.Sprintf("%s-%s", runtime.GOOS, runtime.GOARCH)
 	res, err := a.updaterSvc.CheckUpdate(ctx, AppVersion, target)
 	if err == nil && res != nil && res.HasUpdate {
+		// Silent discovery only lights the rail badge. Details and actions
+		// stay inside the update panel, never under the preview.
 		a.update(func() {
-			a.setStatus(fmt.Sprintf("✨ 发现新版本 %s，点击“检查更新”即可安装", res.LatestVersion), false)
+			a.updateBadge = true
+			a.updateUI.version = res.LatestVersion
 		})
 	}
 }
@@ -1950,7 +2491,7 @@ func (a *application) toggleFavorite(path string) {
 		return
 	}
 	a.update(func() {
-		a.favorites = state.Favorites
+		a.favorites = usableWallpaperPaths(state.Favorites)
 		if isFav {
 			a.status = "已加入收藏夹"
 		} else {
@@ -1973,7 +2514,7 @@ func (a *application) clearRecent() {
 		return
 	}
 	a.update(func() {
-		a.recent = state.Recent
+		a.recent = usableWallpaperPaths(state.Recent)
 		a.status = "已清空最近壁纸记录"
 		a.error = false
 	})
@@ -2048,7 +2589,7 @@ func (a *application) runAutoBingCheck() {
 		}
 		if a.store != nil {
 			if state, saveErr := a.store.Add(localPath); saveErr == nil {
-				a.recent = state.Recent
+				a.recent = usableWallpaperPaths(state.Recent)
 			}
 		}
 		a.status = "已自动同步今日必应壁纸: " + today.Title
@@ -2060,6 +2601,10 @@ func (a *application) applyRandomWallpaper() {
 	if a.onlineSvc == nil {
 		return
 	}
+	a.update(func() {
+		a.busy = true
+		a.setStatus("正在挑选随机壁纸…", false)
+	})
 	go func() {
 		var items []online.WallpaperItem
 		var err error
@@ -2073,6 +2618,14 @@ func (a *application) applyRandomWallpaper() {
 			err = fmt.Errorf("未找到随机壁纸源")
 		}
 		if err != nil || len(items) == 0 {
+			message := "随机壁纸暂无可用数据"
+			if err != nil {
+				message = "挑选随机壁纸失败: " + err.Error()
+			}
+			a.update(func() {
+				a.busy = false
+				a.setStatus(message, true)
+			})
 			return
 		}
 		idx := time.Now().UnixNano() % int64(len(items))
